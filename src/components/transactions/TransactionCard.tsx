@@ -42,6 +42,11 @@ export default function TransactionCard({ txn, onClick }: TransactionCardProps) 
     }
   };
 
+  const handleRemoveCover = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCoverImage(txn.id, '');
+  };
+
   return (
     <div
       onClick={onClick}
@@ -73,6 +78,16 @@ export default function TransactionCard({ txn, onClick }: TransactionCardProps) 
             {uploading ? '上传中...' : txn.coverImage ? '更换封面' : '添加封面'}
           </span>
         </div>
+        {/* 删除封面按钮（移动端无 hover，故始终可见） */}
+        {txn.coverImage && (
+          <button
+            onClick={handleRemoveCover}
+            className="absolute top-1.5 right-1.5 w-6 h-6 flex items-center justify-center rounded-full bg-black/50 text-white text-sm leading-none hover:bg-red-500 transition-colors"
+            title="删除封面"
+          >
+            ✕
+          </button>
+        )}
         <input
           ref={fileInputRef}
           type="file"
