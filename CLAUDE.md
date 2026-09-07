@@ -115,9 +115,15 @@ src/
 
 1. `npm run build` — 产出 web 资源到 `dist/`
 2. `npx cap sync android` — 同步 web 资源 + 配置到 `android/`
-3. 编译 APK（**需本机安装 Android Studio / SDK + JDK 17**）：
-   - 命令行：`cd android && ./gradlew assembleDebug`（Windows 用 `gradlew.bat`）
+3. 编译 APK（**需 JDK 21**（Capacitor 8 要求，不是 17）+ Android SDK）：
+   - 先 `export JAVA_HOME="E:/Android/jdk21/jdk-21.0.12.1+1"` 指向 JDK 21
+   - 命令行：`cd android && sh gradlew assembleDebug`（Windows Git Bash）
    - 产物：`android/app/build/outputs/apk/debug/app-debug.apk`
    - 或用 `npx cap open android` 在 Android Studio 打开后点 Run
 
-首次构建 Gradle 会联网下载依赖，需配置好 Android SDK（设置 `ANDROID_HOME` 或 `android/local.properties` 里的 `sdk.dir`）。
+**本机环境（已配好，2026-08-30）**：
+- Android SDK：`E:/Android/sdk`（`android/local.properties` 里 `sdk.dir=E:/Android/sdk`；已装 platforms;android-36、build-tools 35.0.0/36.0.0）
+- 完整 JDK 21：`E:/Android/jdk21/jdk-21.0.12.1+1`
+- 国内镜像：`gradle-wrapper.properties` 已改腾讯云源；`~/.gradle/init.d/china-mirrors.gradle` 配置了阿里云 Maven 镜像
+
+首次构建 Gradle 会联网下载依赖，需配置好 Android SDK（`local.properties` 里的 `sdk.dir`）。
