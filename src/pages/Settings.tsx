@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import UploadZone from '@/components/transactions/UploadZone';
 import CategoryRuleEditor from '@/components/settings/CategoryRuleEditor';
+import AutoLedgerSettings from '@/components/settings/AutoLedgerSettings';
 import { useTransactionStore } from '@/stores/transaction-store';
 import { useClassificationStore } from '@/stores/classification-store';
 import { useBudgetStore } from '@/stores/budget-store';
@@ -127,6 +128,9 @@ export default function Settings() {
           <span>自动去重</span>
         </div>
       </section>
+
+      {/* ========== 自动记账 ========== */}
+      <AutoLedgerSettings />
 
       {/* ========== 分类规则 ========== */}
       <section className="bg-white rounded-xl border border-gray-100 p-4">

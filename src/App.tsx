@@ -3,6 +3,7 @@ import Dashboard from '@/pages/Dashboard';
 import Transactions from '@/pages/Transactions';
 import Budget from '@/pages/Budget';
 import Settings from '@/pages/Settings';
+import { useAutoLedger } from '@/hooks/useAutoLedger';
 
 const navItems = [
   { to: '/', label: '看板', icon: '📊' },
@@ -12,6 +13,8 @@ const navItems = [
 ];
 
 export default function App() {
+  useAutoLedger();
+
   return (
     <BrowserRouter>
       <div className="min-h-screen bg-gray-50">
