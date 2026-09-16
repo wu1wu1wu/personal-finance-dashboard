@@ -317,6 +317,7 @@ async function parseWechatXLSX(
           paymentMethod: mapped.paymentMethod || '',
           category: '',
           categorySource: 'auto',
+          origin: 'import',
           isPeriodic: false,
           tags: [],
           createdAt: now,
@@ -475,6 +476,7 @@ async function parseWechatCSVText(
           paymentMethod: mapped.paymentMethod || '',
           category: '', // 分类由分类引擎填充
           categorySource: 'auto',
+          origin: 'import',
           isPeriodic: false,
           tags: [],
           createdAt: now,

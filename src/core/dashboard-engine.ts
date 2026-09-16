@@ -5,6 +5,7 @@
 import type { Transaction } from '@/types';
 import { CATEGORIES } from '@/types';
 import { getMonthKey, getCurrentMonth, getRecentMonths, getDaysInMonth } from '@/utils/date';
+import { isConsumption } from '@/core/transaction-query';
 
 /** 月度趋势数据点 */
 export interface MonthlyTrendPoint {
@@ -49,7 +50,8 @@ export function calcMonthlyTrend(transactions: Transaction[]): MonthlyTrendPoint
 
   return months.map((month) => {
     const monthTxns = transactions.filter((t) => getMonthKey(t.transactionTime) === month);
-    const expense = monthTxns.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0);
+    // 转账不计入支出
+    const expense = monthTxns.filter(isConsumption).reduce((s, t) => s + t.amount, 0);
     const income = monthTxns.filter((t) => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
 
     return {
@@ -70,7 +72,7 @@ export function calcCategoryBreakdown(
 ): CategoryBreakdownPoint[] {
   const targetMonth = month ?? getCurrentMonth();
   const monthTxns = transactions.filter(
-    (t) => getMonthKey(t.transactionTime) === targetMonth && t.amount > 0,
+    (t) => getMonthKey(t.transactionTime) === targetMonth && isConsumption(t),
   );
 
   // 按分类汇总
@@ -113,7 +115,7 @@ export function calcDailySpend(
   const days = getDaysInMonth(targetMonth);
 
   const monthTxns = transactions.filter(
-    (t) => getMonthKey(t.transactionTime) === targetMonth && t.amount > 0,
+    (t) => getMonthKey(t.transactionTime) === targetMonth && isConsumption(t),
   );
 
   // 按日汇总
@@ -140,7 +142,8 @@ export function calcDashboardMetrics(
   const targetMonth = month ?? getCurrentMonth();
   const monthTxns = transactions.filter((t) => getMonthKey(t.transactionTime) === targetMonth);
 
-  const expenseTxns = monthTxns.filter((t) => t.amount > 0);
+  // 转账不计入支出
+  const expenseTxns = monthTxns.filter(isConsumption);
   const totalExpense = expenseTxns.reduce((s, t) => s + t.amount, 0);
   const totalIncome = monthTxns
     .filter((t) => t.amount < 0)

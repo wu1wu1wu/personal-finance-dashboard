@@ -39,6 +39,9 @@ export default function Transactions() {
 
   // 分类筛选（同时支持看板饼图下钻）
   const categoryFilter = searchParams.get('category') ?? '';
+  // 待确认收件箱：从看板入口带 ?pending=1 进来
+  const pendingOnly = searchParams.get('pending') === '1';
+  const activeCategory = pendingOnly ? '待确认' : categoryFilter;
 
   const [direction, setDirection] = useState<DirectionFilter>('all');
   const [month, setMonth] = useState('');
@@ -58,13 +61,13 @@ export default function Transactions() {
   const filteredTransactions = useMemo(
     () =>
       queryTransactions(transactions, {
-        category: categoryFilter || undefined,
+        category: activeCategory || undefined,
         month: month || undefined,
         direction,
         keyword,
         sort,
       }),
-    [transactions, categoryFilter, month, direction, keyword, sort],
+    [transactions, activeCategory, month, direction, keyword, sort],
   );
 
   const summary = useMemo(
@@ -75,7 +78,7 @@ export default function Transactions() {
   // 条件变化后回到第一批，避免停留在很深的滚动位置
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [categoryFilter, month, direction, keyword, sort]);
+  }, [activeCategory, month, direction, keyword, sort]);
 
   const visibleTransactions = useMemo(
     () => filteredTransactions.slice(0, visibleCount),
@@ -184,16 +187,18 @@ export default function Transactions() {
         />
       </div>
 
-      {/* 分类筛选标签（从看板下钻时显示） */}
-      {categoryFilter && (
+      {/* 分类筛选标签（看板下钻 / 待确认收件箱） */}
+      {activeCategory && (
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-500">筛选分类：</span>
+          <span className="text-sm text-gray-500">
+            {pendingOnly ? '待确认收件箱：' : '筛选分类：'}
+          </span>
           <span className="inline-flex items-center gap-1 px-3 py-1 text-sm bg-blue-50 text-blue-700 rounded-full">
-            {getCategoryInfo(categoryFilter).icon} {categoryFilter}
+            {getCategoryInfo(activeCategory).icon} {activeCategory}
             <button
               onClick={clearFilter}
               className="ml-1 text-blue-400 hover:text-blue-600"
-              title="清除筛选"
+              title={pendingOnly ? '退出收件箱' : '清除筛选'}
             >
               ✕
             </button>
@@ -207,6 +212,7 @@ export default function Transactions() {
           <span>共 {summary.count} 条</span>
           <span>支出: {formatCurrency(summary.expense)}</span>
           <span>收入: {formatCurrency(summary.income)}</span>
+          {summary.transfer > 0 && <span>转账: {formatCurrency(summary.transfer)}</span>}
         </div>
       )}
 

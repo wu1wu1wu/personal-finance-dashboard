@@ -5,6 +5,7 @@
 import type { Transaction, Budget, BudgetStatus } from '@/types';
 import { CATEGORIES } from '@/types';
 import { getMonthKey } from '@/utils/date';
+import { isConsumption } from '@/core/transaction-query';
 
 /** 预警阈值 */
 const WARNING_THRESHOLD = 0.8; // 80% 黄色预警
@@ -23,7 +24,7 @@ export function calcBudgetStatus(
 ): BudgetStatus[] {
   // 筛选当月支出交易（amount > 0 表示支出）
   const monthTxns = transactions.filter(
-    (t) => getMonthKey(t.transactionTime) === month && t.amount > 0,
+    (t) => getMonthKey(t.transactionTime) === month && isConsumption(t),
   );
 
   // 按分类汇总支出
@@ -70,7 +71,7 @@ export function calcTotalBudgetStatus(
   if (totalBudget <= 0) return null;
 
   const monthTxns = transactions.filter(
-    (t) => getMonthKey(t.transactionTime) === month && t.amount > 0,
+    (t) => getMonthKey(t.transactionTime) === month && isConsumption(t),
   );
 
   const totalSpent = monthTxns.reduce((sum, t) => sum + t.amount, 0);

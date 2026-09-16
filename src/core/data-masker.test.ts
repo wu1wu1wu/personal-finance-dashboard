@@ -63,6 +63,7 @@ describe('maskTransaction', () => {
       tags: [],
       createdAt: '',
       coverImage: '',
+      origin: 'import',
     }
     const masked = maskTransaction(txn)
     expect(masked.counterparty).toBe('************7890')

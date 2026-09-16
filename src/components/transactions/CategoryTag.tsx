@@ -17,7 +17,7 @@ interface CategoryTagProps {
   /** 商品说明（用于反馈学习） */
   description: string;
   /** 分类来源 */
-  source?: 'auto' | 'manual';
+  source?: 'auto' | 'manual' | 'guessed';
   /** 是否可编辑 */
   editable?: boolean;
 }
@@ -88,6 +88,11 @@ export default function CategoryTag({
         <span>{catInfo.name}</span>
         {source === 'manual' && (
           <span className="ml-0.5 text-[10px] opacity-60">✎</span>
+        )}
+        {source === 'guessed' && (
+          <span className="ml-0.5 text-[10px] opacity-70" title="按历史习惯推测">
+            推测
+          </span>
         )}
       </button>
 

@@ -12,11 +12,25 @@ import { classifyTransaction } from '@/core/classifier';
 import { generateTransactionId } from '@/utils/id';
 import { useTransactionStore } from '@/stores/transaction-store';
 import { useClassificationStore } from '@/stores/classification-store';
+import { buildHabitModel } from '@/core/habit-learner';
+import type { HabitModel } from '@/core/habit-learner';
 import type { Transaction } from '@/types';
 
-/** 当前本地时间 "yyyy-MM-dd HH:mm:ss" */
-function localDateTime(): string {
-  const d = new Date();
+/** 习惯模型缓存：交易数组引用变化时重建（store 每次变更都会换新数组） */
+let cachedModelKey: Transaction[] | null = null;
+let cachedModel: HabitModel | null = null;
+
+function getHabitModel(transactions: Transaction[]): HabitModel {
+  if (cachedModelKey !== transactions || cachedModel === null) {
+    cachedModel = buildHabitModel(transactions);
+    cachedModelKey = transactions;
+  }
+  return cachedModel;
+}
+
+/** 把时间戳格式化为本地 "yyyy-MM-dd HH:mm:ss" */
+function formatDateTime(ms: number): string {
+  const d = new Date(ms);
   const pad = (n: number) => n.toString().padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
@@ -31,7 +45,9 @@ function processCapture(data: CapturedTransaction) {
   const store = useTransactionStore.getState();
   if (store.transactions.some((t) => t.transactionNo === transactionNo)) return;
 
-  const timeStr = localDateTime();
+  // 必须用原生捕获时刻（= 支付时刻）而不是「当前处理时刻」：
+  // App 在后台时，通知可能隔几小时才被处理，用处理时刻会让账单回填的时间匹配失准。
+  const timeStr = formatDateTime(data.timestamp);
   const txn: Transaction = {
     id: generateTransactionId(timeStr, parsed.amount, transactionNo),
     transactionTime: timeStr,
@@ -44,6 +60,7 @@ function processCapture(data: CapturedTransaction) {
     paymentMethod: '',
     category: '',
     categorySource: 'auto',
+    origin: 'auto',
     isPeriodic: false,
     tags: [],
     createdAt: new Date().toISOString(),
@@ -51,8 +68,20 @@ function processCapture(data: CapturedTransaction) {
   };
 
   const customRules = useClassificationStore.getState().customRules;
-  const category = classifyTransaction(txn, customRules);
-  useTransactionStore.getState().addTransaction({ ...txn, category });
+  let category = classifyTransaction(txn, customRules);
+  let categorySource: Transaction['categorySource'] = 'auto';
+
+  // 关键词规则没命中时，用历史账单学到的「金额 + 时段」习惯给一个推测分类。
+  // 推测结果单独标记，方便用户一眼分辨并能一键改正。
+  if (category === '待确认') {
+    const guess = getHabitModel(store.transactions).predict(txn);
+    if (guess) {
+      category = guess.category;
+      categorySource = 'guessed';
+    }
+  }
+
+  store.addTransaction({ ...txn, category, categorySource });
 }
 
 /**

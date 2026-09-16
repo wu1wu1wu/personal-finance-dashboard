@@ -2,10 +2,11 @@
 // TransactionDetailModal - 交易详情弹窗（查看完整信息 + 删除）
 // ============================================================
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { Transaction } from '@/types';
 import { CATEGORIES } from '@/types';
 import { useTransactionStore } from '@/stores/transaction-store';
+import { useClassificationStore } from '@/stores/classification-store';
 import CategoryTag from '@/components/transactions/CategoryTag';
 import { formatCurrency } from '@/utils/format';
 
@@ -16,7 +17,32 @@ interface TransactionDetailModalProps {
 
 export default function TransactionDetailModal({ txn, onClose }: TransactionDetailModalProps) {
   const deleteTransaction = useTransactionStore((s) => s.deleteTransaction);
+  const updateCategory = useTransactionStore((s) => s.updateCategory);
+  const transactions = useTransactionStore((s) => s.transactions);
+  const recordFeedback = useClassificationStore((s) => s.recordFeedback);
   const [confirming, setConfirming] = useState(false);
+
+  // 常用分类：按用户历史出现频次排序取前 6 个，没有历史时回退到内置分类顺序
+  const quickCategories = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const t of transactions) {
+      if (!t.category || t.category === '待确认') continue;
+      counts.set(t.category, (counts.get(t.category) ?? 0) + 1);
+    }
+    const ordered = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([name]) => name);
+    const names = ordered.length > 0 ? ordered : CATEGORIES.filter((c) => c.name !== '待确认').map((c) => c.name);
+    return names
+      .slice(0, 6)
+      .map((name) => CATEGORIES.find((c) => c.name === name) ?? CATEGORIES[CATEGORIES.length - 1]);
+  }, [transactions]);
+
+  const handleQuickCategorize = (category: string) => {
+    if (category === txn.category) return;
+    updateCategory(txn.id, category);
+    // 与 CategoryTag 保持一致：顺手记录反馈，让同类关键词逐步升级成规则
+    const words = `${txn.counterparty} ${txn.description}`.toLowerCase().split(/\s+/).filter((w) => w.length >= 2);
+    if (words.length > 0) recordFeedback(words[0], category);
+  };
 
   const cat = CATEGORIES.find((c) => c.name === txn.category) ?? CATEGORIES[CATEGORIES.length - 1];
   const isExpense = txn.amount > 0;
@@ -29,7 +55,15 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
     { label: '支付方式', value: txn.paymentMethod || '无' },
     { label: '交易状态', value: txn.paymentStatus || '无' },
     { label: '交易单号', value: txn.transactionNo || '无' },
-    { label: '分类来源', value: txn.categorySource === 'manual' ? '手动指定' : '自动识别' },
+    {
+      label: '分类来源',
+      value:
+        txn.categorySource === 'manual'
+          ? '手动指定'
+          : txn.categorySource === 'guessed'
+            ? '习惯推测'
+            : '自动识别',
+    },
     { label: '周期交易', value: txn.isPeriodic ? '是' : '否' },
     {
       label: '导入时间',
@@ -106,6 +140,27 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
               source={txn.categorySource}
               editable
             />
+          </div>
+        </div>
+
+        {/* 快速归类：待确认的记录点一下就好 */}
+        <div className="px-5 py-4 border-b border-gray-100">
+          <p className="text-xs text-gray-400 mb-2">快速归类</p>
+          <div className="grid grid-cols-3 gap-2">
+            {quickCategories.map((cat) => (
+              <button
+                key={cat.name}
+                onClick={() => handleQuickCategorize(cat.name)}
+                className={`py-2 px-1 rounded-lg text-xs flex flex-col items-center gap-1 border transition-colors ${
+                  cat.name === txn.category
+                    ? 'border-blue-300 bg-blue-50 text-blue-700'
+                    : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <span className="text-base">{cat.icon}</span>
+                <span className="w-full text-center truncate">{cat.name}</span>
+              </button>
+            ))}
           </div>
         </div>
 

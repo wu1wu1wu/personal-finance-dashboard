@@ -17,6 +17,7 @@ import {
 } from '@/core/periodic-engine';
 import { getCurrentMonth, getRecentMonths } from '@/utils/date';
 import { formatCurrency } from '@/utils/format';
+import { isConsumption } from '@/core/transaction-query';
 import { CATEGORIES } from '@/types';
 import DashboardStats from '@/components/dashboard/DashboardStats';
 import MonthlyTrendChart from '@/components/dashboard/MonthlyTrendChart';
@@ -100,12 +101,21 @@ export default function Dashboard() {
     return () => observer.disconnect();
   }, [hasMore, filteredTransactions.length]);
 
-  // 当月支出/收入统计（按筛选后）
+  // 当月支出/收入统计（按筛选后）；转账不计入支出
   const monthStats = useMemo(() => {
-    const expense = filteredTransactions.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0);
+    const expense = filteredTransactions.filter(isConsumption).reduce((s, t) => s + t.amount, 0);
     const income = filteredTransactions.filter((t) => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
-    return { expense, income, count: filteredTransactions.length };
+    const transfer = filteredTransactions
+      .filter((t) => t.amount > 0 && !isConsumption(t))
+      .reduce((s, t) => s + t.amount, 0);
+    return { expense, income, transfer, count: filteredTransactions.length };
   }, [filteredTransactions]);
+
+  // 待确认数量（收件箱入口）
+  const pendingCount = useMemo(
+    () => transactions.filter((t) => t.category === '待确认').length,
+    [transactions],
+  );
 
   // ===== 图表视图数据 =====
   const trendData = useMemo(() => calcMonthlyTrend(transactions), [transactions]);
@@ -175,6 +185,19 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* 待确认收件箱入口 */}
+      {pendingCount > 0 && (
+        <button
+          onClick={() => navigate('/transactions?pending=1')}
+          className="w-full flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-left hover:bg-amber-100 transition-colors"
+        >
+          <span className="text-sm text-amber-800">
+            有 <span className="font-bold">{pendingCount}</span> 笔交易待确认分类
+          </span>
+          <span className="text-xs text-amber-600">去处理 →</span>
+        </button>
+      )}
+
       {/* 月份选择 */}
       <div className="flex items-center gap-2">
         <span className="text-sm text-gray-500">月份：</span>
@@ -225,6 +248,12 @@ export default function Dashboard() {
               <span className="font-bold text-gray-700">{monthStats.count}</span>
             </div>
           </div>
+
+          {monthStats.transfer > 0 && (
+            <p className="text-xs text-gray-400 text-center">
+              另有转账 {formatCurrency(monthStats.transfer)}，不计入支出
+            </p>
+          )}
 
           {/* 分类筛选标签 */}
           <div className="flex flex-wrap gap-1.5">

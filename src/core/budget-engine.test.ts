@@ -24,6 +24,7 @@ function makeTxn(overrides: Partial<Transaction> = {}): Transaction {
     tags: [],
     createdAt: '',
     coverImage: '',
+    origin: 'import',
     ...overrides,
   }
 }

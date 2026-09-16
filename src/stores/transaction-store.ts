@@ -25,6 +25,8 @@ interface TransactionStore {
   loadFromStorage: () => Promise<void>;
   /** 添加新交易（导入时使用，自动去重） */
   addTransactions: (txns: Transaction[]) => number;
+  /** 账单回填：把补全后的完整交易列表写回 */
+  applyReconcile: (next: Transaction[]) => void;
   /** 手动添加单条交易 */
   addTransaction: (txn: Transaction) => void;
   /** 更新单条交易的分类 */
@@ -81,18 +83,36 @@ export const useTransactionStore = create<TransactionStore>((set, get) => ({
       console.log(`[迁移] 清理了 ${data.length - valid.length} 条损坏记录，剩余 ${valid.length} 条`);
       await storage.set(STORAGE_KEYS.TRANSACTIONS, valid);
     }
-    // 分类规则升级迁移：新增「转账」分类后，把此前自动归到「其他」的转账类记录改判。
-    // 只动 categorySource === 'auto' 的记录，用户手动改过的分类不覆盖。
+    // 一次性数据迁移：
+    // 1. 补齐 origin（老数据没有这个字段），按交易单号推断来源
+    // 2. 新增「转账」分类后，把此前自动归到「其他」的转账类记录改判
+    //    只动 categorySource === 'auto' 的记录，用户手动改过的分类不覆盖
     let changed = 0;
     const migrated = valid.map((t) => {
-      if (t.category !== '其他' || t.categorySource !== 'auto') return t;
-      const next = classifyTransaction(t, []);
-      if (next === t.category) return t;
-      changed++;
-      return { ...t, category: next };
+      let next = t;
+
+      if (!next.origin) {
+        const no = next.transactionNo || '';
+        const origin: Transaction['origin'] = no.startsWith('auto-')
+          ? 'auto'
+          : no.startsWith('manual-')
+            ? 'manual'
+            : 'import';
+        next = { ...next, origin };
+      }
+
+      if (next.category === '其他' && next.categorySource === 'auto') {
+        const category = classifyTransaction(next, []);
+        if (category !== next.category) {
+          next = { ...next, category };
+        }
+      }
+
+      if (next !== t) changed++;
+      return next;
     });
     if (changed > 0) {
-      console.log(`[迁移] 分类规则升级，改判了 ${changed} 条记录`);
+      console.log(`[迁移] 已迁移 ${changed} 条记录`);
       await storage.set(STORAGE_KEYS.TRANSACTIONS, migrated);
     }
     set({ transactions: migrated, loaded: true });
@@ -116,6 +136,12 @@ export const useTransactionStore = create<TransactionStore>((set, get) => ({
       transactions: [txn, ...state.transactions],
     }));
     get().persist();
+  },
+
+  applyReconcile: (next) => {
+    set({ transactions: next });
+    get().persist();
+    get().autoMarkPeriodic();
   },
 
   updateCategory: (id, category) => {

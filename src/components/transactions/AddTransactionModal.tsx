@@ -44,6 +44,7 @@ export default function AddTransactionModal({ onClose }: AddTransactionModalProp
       paymentMethod: '',
       category: category || '待确认',
       categorySource: category ? 'manual' : 'auto',
+      origin: 'manual',
       isPeriodic: false,
       tags: [],
       createdAt: new Date().toISOString(),

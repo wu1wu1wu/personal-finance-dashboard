@@ -6,12 +6,15 @@ import { useState, useCallback, useRef } from 'react';
 import { parseWechatCSV, isWechatCSVFile } from '@/core/csv-parser';
 import { maskTransactions } from '@/core/data-masker';
 import { classifyTransactions } from '@/core/classifier';
+import { reconcileImportedBills } from '@/core/transaction-reconcile';
 import { useTransactionStore } from '@/stores/transaction-store';
 import { useClassificationStore } from '@/stores/classification-store';
 
 interface UploadResult {
   total: number;
   added: number;
+  /** 被账单回填补全的自动捕获记录数 */
+  enriched?: number;
   duplicates: number;
   errors: string[];
 }
@@ -21,7 +24,7 @@ export default function UploadZone() {
   const [result, setResult] = useState<UploadResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { importing, importMessage, setImporting, addTransactions, getExistingIds, loadFromStorage } =
+  const { importing, importMessage, setImporting, getExistingIds, loadFromStorage } =
     useTransactionStore();
   const { loadFromStorage: loadRules, getAllRules } = useClassificationStore();
 
@@ -73,30 +76,36 @@ export default function UploadZone() {
         const allRules = getAllRules();
         const classified = classifyTransactions(masked, allRules);
 
-        // 写入Store（自动去重）
-        const addedCount = addTransactions(classified.classified);
+        // 写入 Store：先按已有 id 去重，再用账单回填此前自动捕获的占位记录。
+        // 回填会把真实商户名、商品、交易单号补到占位记录上，并重新分类。
+        const store = useTransactionStore.getState();
+        const existingIds = getExistingIds();
+        const fresh = classified.classified.filter((t) => !existingIds.has(t.id));
+        const duplicateByImport = classified.classified.length - fresh.length;
+        const reconcile = reconcileImportedBills(store.transactions, fresh, allRules);
+        store.applyReconcile(reconcile.transactions);
+
+        const addedCount = reconcile.stats.addedCount;
+        const enrichedCount = reconcile.stats.enrichedCount;
 
         setResult({
           total: parseResult.transactions.length,
           added: addedCount,
-          duplicates: parseResult.duplicateCount,
+          enriched: enrichedCount,
+          duplicates: parseResult.duplicateCount + duplicateByImport,
           errors: parseResult.errors,
         });
 
-        // 附加分类统计到结果
-        if (classified.stats.classified > 0) {
-          setImporting(
-            false,
-            `成功导入 ${addedCount} 条记录，自动分类 ${classified.stats.classified} 条`,
-          );
-        } else {
-          setImporting(
-            false,
-            addedCount > 0
-              ? `成功导入 ${addedCount} 条记录`
-              : '没有新记录需要导入（全部重复）',
-          );
-        }
+        // 拼装导入结果提示
+        const parts: string[] = [];
+        if (addedCount > 0) parts.push(`新增 ${addedCount} 条`);
+        if (enrichedCount > 0) parts.push(`补全 ${enrichedCount} 条自动记录`);
+        if (classified.stats.classified > 0) parts.push(`自动分类 ${classified.stats.classified} 条`);
+
+        setImporting(
+          false,
+          parts.length > 0 ? `导入完成：${parts.join('，')}` : '没有新记录需要导入（全部重复）',
+        );
       } catch (e) {
         setResult({
           total: 0,
@@ -107,7 +116,7 @@ export default function UploadZone() {
         setImporting(false);
       }
     },
-    [addTransactions, getExistingIds, loadFromStorage, setImporting, loadRules, getAllRules],
+    [getExistingIds, loadFromStorage, setImporting, loadRules, getAllRules],
   );
 
   /** 拖拽事件处理 */
@@ -211,6 +220,7 @@ export default function UploadZone() {
             <div className="flex gap-4 text-sm text-gray-500">
               <span>解析: {result.total} 条</span>
               <span>新增: {result.added} 条</span>
+              {(result.enriched ?? 0) > 0 && <span>补全: {result.enriched} 条</span>}
               {result.duplicates > 0 && <span>重复: {result.duplicates} 条</span>}
             </div>
           )}

@@ -24,8 +24,10 @@ export interface Transaction {
   paymentMethod: string;
   /** 分类 */
   category: string;
-  /** 分类来源：自动/手动 */
-  categorySource: 'auto' | 'manual';
+  /** 分类来源：自动识别 / 手动指定 / 习惯推测 */
+  categorySource: 'auto' | 'manual' | 'guessed';
+  /** 记录来源：账单导入 / 手动添加 / 自动捕获（通知或短信） */
+  origin: 'import' | 'manual' | 'auto';
   /** 是否周期性交易 */
   isPeriodic: boolean;
   /** 用户自定义标签 */

@@ -22,6 +22,7 @@ function txn(partial: Partial<Transaction> & Pick<Transaction, 'id'>): Transacti
     tags: [],
     createdAt: '2026-09-01T00:00:00.000Z',
     coverImage: '',
+    origin: 'import',
     ...partial,
   }
 }
@@ -102,15 +103,47 @@ describe('getAvailableMonths', () => {
 })
 
 describe('summarizeTransactions', () => {
-  it('分别汇总笔数、支出与收入', () => {
+  it('分别汇总笔数、消费支出、收入与转出', () => {
     expect(summarizeTransactions(data)).toEqual({
       count: 4,
       expense: 150,
       income: 5000,
+      transfer: 0,
     })
   })
 
   it('空列表返回全零', () => {
-    expect(summarizeTransactions([])).toEqual({ count: 0, expense: 0, income: 0 })
+    expect(summarizeTransactions([])).toEqual({ count: 0, expense: 0, income: 0, transfer: 0 })
+  })
+
+  it('转出不计入支出，单独统计', () => {
+    const withTransfer = [
+      txn({ id: 'x', amount: 100, category: '餐饮美食' }),
+      txn({ id: 'y', amount: 2000, category: '转账' }),
+    ]
+    expect(summarizeTransactions(withTransfer)).toEqual({
+      count: 2,
+      expense: 100,
+      income: 0,
+      transfer: 2000,
+    })
+  })
+})
+
+describe('转账不计入支出筛选', () => {
+  const withTransfer = [
+    txn({ id: 'meal', amount: 30, counterparty: '肯德基', category: '餐饮美食' }),
+    txn({ id: 'move', amount: 2000, counterparty: '张三', category: '转账' }),
+  ]
+
+  it('direction=expense 时不显示转账', () => {
+    expect(queryTransactions(withTransfer, { direction: 'expense' }).map((t) => t.id)).toEqual(['meal'])
+  })
+
+  it('direction=all 时转账仍然可见', () => {
+    expect(queryTransactions(withTransfer, { direction: 'all' }).map((t) => t.id).sort()).toEqual([
+      'meal',
+      'move',
+    ])
   })
 })

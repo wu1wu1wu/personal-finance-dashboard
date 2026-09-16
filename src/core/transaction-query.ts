@@ -26,11 +26,16 @@ export interface TransactionQuery {
 /** 交易列表汇总 */
 export interface TransactionSummary {
   count: number;
-  /** 支出合计（正数） */
+  /** 消费支出合计（正数，不含转账） */
   expense: number;
   /** 收入合计（正数） */
   income: number;
+  /** 转出合计（正数，单独列示，不计入支出） */
+  transfer: number;
 }
+
+/** 转账分类名：不计入「支出」统计口径 */
+export const TRANSFER_CATEGORY = '转账';
 
 /** 金额约定：正数 = 支出，负数 = 收入 */
 export function isExpense(txn: Transaction): boolean {
@@ -39,6 +44,15 @@ export function isExpense(txn: Transaction): boolean {
 
 export function isIncome(txn: Transaction): boolean {
   return txn.amount < 0;
+}
+
+/**
+ * 是否计入「消费支出」统计。
+ * 转账（含红包/提现/退款）只是资金搬运，计入会让支出结构、饼图和预算全部失真，所以排除。
+ * 全站的支出统计都应通过这个判定，不要在各自模块里散着写字符串比较。
+ */
+export function isConsumption(txn: Transaction): boolean {
+  return txn.amount > 0 && txn.category !== TRANSFER_CATEGORY;
 }
 
 /**
@@ -77,7 +91,8 @@ export function queryTransactions(
   const filtered = transactions.filter((t) => {
     if (category && t.category !== category) return false;
     if (month && !t.transactionTime.startsWith(month)) return false;
-    if (direction === 'expense' && !isExpense(t)) return false;
+    // 「支出」按消费口径筛选，转账单独看（与统计口径保持一致）
+    if (direction === 'expense' && !isConsumption(t)) return false;
     if (direction === 'income' && !isIncome(t)) return false;
     if (kw) {
       const haystack = `${t.counterparty} ${t.description}`.toLowerCase();
@@ -113,17 +128,26 @@ export function queryTransactions(
   return sorted;
 }
 
-/** 汇总笔数、支出、收入 */
+/**
+ * 汇总笔数、消费支出、收入、转出。
+ * 注意：收入方向不做转账区分（本次只调整支出口径）。
+ */
 export function summarizeTransactions(transactions: Transaction[]): TransactionSummary {
   let expense = 0;
   let income = 0;
+  let transfer = 0;
   for (const t of transactions) {
-    if (t.amount > 0) expense += t.amount;
-    else if (t.amount < 0) income += Math.abs(t.amount);
+    if (t.amount > 0) {
+      if (t.category === TRANSFER_CATEGORY) transfer += t.amount;
+      else expense += t.amount;
+    } else if (t.amount < 0) {
+      income += Math.abs(t.amount);
+    }
   }
   return {
     count: transactions.length,
     expense: Math.round(expense * 100) / 100,
     income: Math.round(income * 100) / 100,
+    transfer: Math.round(transfer * 100) / 100,
   };
 }
