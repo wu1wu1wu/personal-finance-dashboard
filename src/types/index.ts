@@ -139,6 +139,7 @@ export const CATEGORIES = [
   { name: '居住生活', icon: '🏠', color: '#10B981' },
   { name: '医疗健康', icon: '💊', color: '#EC4899' },
   { name: '教育学习', icon: '📚', color: '#6366F1' },
+  { name: '转账', icon: '🔁', color: '#0EA5E9' },
   { name: '其他', icon: '📌', color: '#6B7280' },
   { name: '待确认', icon: '❓', color: '#9CA3AF' },
 ] as const;

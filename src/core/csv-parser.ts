@@ -287,7 +287,7 @@ async function parseWechatXLSX(
         const wechatType = mapped.transactionType || '';
         const rawDescription = mapped.description || mapped.remark || '';
         // 当原始微信类型是分类关键信息时，合并到描述中
-        const informativeTypes = ['转账', '红包', '扫二维码付款', '群收款'];
+        const informativeTypes = ['转账', '红包', '提现', '退款', '扫二维码付款', '群收款'];
         const description = informativeTypes.includes(wechatType) && !rawDescription.includes(wechatType)
           ? (rawDescription ? `${wechatType}: ${rawDescription}` : wechatType)
           : rawDescription;
@@ -445,7 +445,7 @@ async function parseWechatCSVText(
       // 保留微信原始交易类型（转账/红包/扫码等），合并到描述中供分类器使用
       const wechatType = mapped.transactionType || '';
       const rawDescription = mapped.description || mapped.remark || '';
-      const informativeTypes = ['转账', '红包', '扫二维码付款', '群收款'];
+      const informativeTypes = ['转账', '红包', '提现', '退款', '扫二维码付款', '群收款'];
       const description = informativeTypes.includes(wechatType) && !rawDescription.includes(wechatType)
         ? (rawDescription ? `${wechatType}: ${rawDescription}` : wechatType)
         : rawDescription;

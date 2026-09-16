@@ -69,10 +69,20 @@ export const BUILTIN_RULES: ClassificationRule[] = [
     isCustom: false,
     hitCount: 0,
   },
-  // 其他 - 转账/红包等
+  // 转账 - 资金搬运（转账/红包/提现/退款/还款），与真实消费区分开
+  {
+    id: 'rule-transfer-1',
+    keywords: ['转账', '红包', '提现', '退款', '还款', '信用卡还款'],
+    category: '转账',
+    // 优先级高于消费类：账单里交易类型明确写着「转账/红包」的，就该归转账
+    priority: 12,
+    isCustom: false,
+    hitCount: 0,
+  },
+  // 其他 - 银行费用类
   {
     id: 'rule-other-1',
-    keywords: ['转账', '红包', '提现', '退款', '手续费', '利息'],
+    keywords: ['手续费', '利息'],
     category: '其他',
     priority: 5,
     isCustom: false,

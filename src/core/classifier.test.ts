@@ -54,15 +54,26 @@ describe('classifyTransaction', () => {
   })
 
   it('具体分类优先于「其他」兜底规则', () => {
-    // 同时命中「美团」（餐饮，priority 10）与「转账」（其他，priority 5）
-    expect(classifyTransaction(makeTxn({ counterparty: '美团', description: '转账' }))).toBe('餐饮美食')
+    // 同时命中「美团」（餐饮，priority 10）与「手续费」（其他，priority 5）
+    expect(classifyTransaction(makeTxn({ counterparty: '美团', description: '手续费' }))).toBe('餐饮美食')
   })
 
-  it('仅命中兜底关键词时归为「其他」', () => {
-    expect(classifyTransaction(makeTxn({ description: '转账' }))).toBe('其他')
+  it('仅命中「其他」关键词时归为「其他」', () => {
+    expect(classifyTransaction(makeTxn({ description: '手续费' }))).toBe('其他')
   })
 
-  it('多个自定义规则命中时按 priority 降序取最高', () => {
+  it('转账类关键词归入「转账」分类', () => {
+    expect(classifyTransaction(makeTxn({ description: '转账' }))).toBe('转账')
+    expect(classifyTransaction(makeTxn({ counterparty: '微信红包' }))).toBe('转账')
+    expect(classifyTransaction(makeTxn({ description: '提现' }))).toBe('转账')
+    expect(classifyTransaction(makeTxn({ description: '退款' }))).toBe('转账')
+  })
+
+  it('账单交易类型明确是转账时，不会被商户名误判为消费', () => {
+    expect(classifyTransaction(makeTxn({ counterparty: '转账', description: '美团' }))).toBe('转账')
+  })
+
+  it('多个自定义规则命中时，按 priority 降序取最高', () => {
     const rules: ClassificationRule[] = [
       { id: 'low', keywords: ['美团'], category: '医疗健康', priority: 100, isCustom: true, hitCount: 0 },
       { id: 'high', keywords: ['美团'], category: '购物消费', priority: 200, isCustom: true, hitCount: 0 },
@@ -74,8 +85,8 @@ describe('classifyTransaction', () => {
 describe('classifyTransactions', () => {
   it('已手动分类的不被覆盖', () => {
     const txns = [
-      makeTxn({ counterparty: '美团', category: '医疗健康', categorySource: 'manual' }),
-      makeTxn({ counterparty: '滴滴', category: '' }),
+      makeTxn({ id: 'a', counterparty: '美团', category: '医疗健康', categorySource: 'manual' }),
+      makeTxn({ id: 'b', counterparty: '滴滴', category: '' }),
     ]
     const { classified, stats } = classifyTransactions(txns)
     expect(classified[0].category).toBe('医疗健康')
@@ -115,6 +126,7 @@ describe('processFeedback', () => {
 describe('isValidCategory', () => {
   it('判断分类是否有效', () => {
     expect(isValidCategory('餐饮美食')).toBe(true)
+    expect(isValidCategory('转账')).toBe(true)
     expect(isValidCategory('不存在的分类')).toBe(false)
   })
 })

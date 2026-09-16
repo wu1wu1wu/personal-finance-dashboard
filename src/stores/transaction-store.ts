@@ -6,6 +6,7 @@ import { create } from 'zustand';
 import type { Transaction, FilterOptions } from '@/types';
 import { STORAGE_KEYS } from '@/types';
 import { storage } from '@/storage/StorageAdapter';
+import { classifyTransaction } from '@/core/classifier';
 import { detectPeriodicTransactions, markPeriodicTransactions } from '@/core/periodic-engine';
 
 interface TransactionStore {
@@ -80,7 +81,21 @@ export const useTransactionStore = create<TransactionStore>((set, get) => ({
       console.log(`[迁移] 清理了 ${data.length - valid.length} 条损坏记录，剩余 ${valid.length} 条`);
       await storage.set(STORAGE_KEYS.TRANSACTIONS, valid);
     }
-    set({ transactions: valid, loaded: true });
+    // 分类规则升级迁移：新增「转账」分类后，把此前自动归到「其他」的转账类记录改判。
+    // 只动 categorySource === 'auto' 的记录，用户手动改过的分类不覆盖。
+    let changed = 0;
+    const migrated = valid.map((t) => {
+      if (t.category !== '其他' || t.categorySource !== 'auto') return t;
+      const next = classifyTransaction(t, []);
+      if (next === t.category) return t;
+      changed++;
+      return { ...t, category: next };
+    });
+    if (changed > 0) {
+      console.log(`[迁移] 分类规则升级，改判了 ${changed} 条记录`);
+      await storage.set(STORAGE_KEYS.TRANSACTIONS, migrated);
+    }
+    set({ transactions: migrated, loaded: true });
     get().autoMarkPeriodic();
   },
 

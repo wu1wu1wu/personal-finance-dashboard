@@ -2,7 +2,7 @@
 // 首页 - 交易卡片列表 + 分类筛选 + 分页 + 图表视图切换
 // ============================================================
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTransactionStore } from '@/stores/transaction-store';
 import {
@@ -83,6 +83,23 @@ export default function Dashboard() {
 
   const hasMore = visibleCount < filteredTransactions.length;
 
+  // 滚动到底自动加载下一批卡片
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !hasMore) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setVisibleCount((prev) => prev + PAGE_SIZE);
+        }
+      },
+      { rootMargin: '240px' },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMore, filteredTransactions.length]);
+
   // 当月支出/收入统计（按筛选后）
   const monthStats = useMemo(() => {
     const expense = filteredTransactions.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0);
@@ -131,10 +148,6 @@ export default function Dashboard() {
 
   const handleCardClick = (txn: typeof transactions[number]) => {
     navigate(`/transactions?category=${encodeURIComponent(txn.category)}`);
-  };
-
-  const showMore = () => {
-    setVisibleCount((prev) => prev + PAGE_SIZE);
   };
 
   const isLoading = !loaded;
@@ -259,14 +272,14 @@ export default function Dashboard() {
                 ))}
               </div>
 
-              {/* 显示更多按钮 */}
+              {/* 滚动到底自动加载下一批；按钮作为兜底 */}
               {hasMore && (
-                <div className="text-center">
+                <div ref={sentinelRef} className="text-center">
                   <button
-                    onClick={showMore}
+                    onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
                     className="px-6 py-2 text-sm bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
                   >
-                    显示更多（{filteredTransactions.length - visibleCount} 条剩余）
+                    加载更多（{filteredTransactions.length - visibleCount} 条剩余）
                   </button>
                 </div>
               )}
