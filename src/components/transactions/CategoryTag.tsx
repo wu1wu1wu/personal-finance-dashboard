@@ -1,11 +1,14 @@
 // ============================================================
-// CategoryTag 组件 - 分类标签（点击可修改分类）
+// CategoryTag - 分类标签（点击可修改分类）
 // ============================================================
 
 import { useState, useRef, useEffect } from 'react';
+import { Check } from 'lucide-react';
 import { CATEGORIES } from '@/types';
 import { useTransactionStore } from '@/stores/transaction-store';
 import { useClassificationStore } from '@/stores/classification-store';
+import { cn } from '@/utils/cn';
+import CategoryIcon from '@/components/ui/CategoryIcon';
 
 interface CategoryTagProps {
   /** 交易ID */
@@ -46,8 +49,15 @@ export default function CategoryTag({
         setOpen(false);
       }
     };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
     document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleKey);
+    };
   }, [open]);
 
   const handleSelect = (newCategory: string) => {
@@ -56,12 +66,10 @@ export default function CategoryTag({
       return;
     }
 
-    // 更新分类
     updateCategory(transactionId, newCategory);
 
-    // 记录反馈（用交易对方和描述中的关键词）
+    // 用交易对方和描述里最靠前的词作为反馈关键词
     const text = `${counterparty} ${description}`.toLowerCase();
-    // 提取最短的关键词作为反馈
     const words = text.split(/\s+/).filter((w) => w.length >= 2);
     if (words.length > 0) {
       recordFeedback(words[0], newCategory);
@@ -71,24 +79,23 @@ export default function CategoryTag({
   };
 
   return (
-    <div className="relative inline-block" ref={dropdownRef}>
+    <div className="relative inline-block shrink-0" ref={dropdownRef}>
       <button
+        type="button"
         onClick={() => editable && setOpen(!open)}
-        className={`
-          inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium
-          transition-colors
-          ${editable ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}
-        `}
+        aria-expanded={editable ? open : undefined}
+        disabled={!editable}
+        className={cn(
+          'inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium',
+          editable ? 'cursor-pointer hover:opacity-80' : 'cursor-default',
+        )}
         style={{
-          backgroundColor: catInfo.color + '18',
+          backgroundColor: `${catInfo.color}18`,
           color: catInfo.color,
         }}
       >
-        <span>{catInfo.icon}</span>
+        <CategoryIcon category={catInfo.name} size={12} />
         <span>{catInfo.name}</span>
-        {source === 'manual' && (
-          <span className="ml-0.5 text-[10px] opacity-60">✎</span>
-        )}
         {source === 'guessed' && (
           <span className="ml-0.5 text-[10px] opacity-70" title="按历史习惯推测">
             推测
@@ -96,21 +103,21 @@ export default function CategoryTag({
         )}
       </button>
 
-      {/* 分类选择下拉 */}
       {open && (
-        <div className="absolute z-20 top-full left-0 mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 py-1 max-h-60 overflow-y-auto">
+        <div className="absolute left-0 top-full z-20 mt-1 max-h-60 w-40 overflow-y-auto rounded-lg border border-line bg-surface py-1 shadow-lg">
           {CATEGORIES.filter((c) => c.name !== '待确认').map((cat) => (
             <button
               key={cat.name}
+              type="button"
               onClick={() => handleSelect(cat.name)}
-              className={`
-                w-full text-left px-3 py-1.5 text-sm flex items-center gap-2
-                hover:bg-gray-50 transition-colors
-                ${cat.name === category ? 'bg-blue-50 text-blue-700' : 'text-gray-700'}
-              `}
+              className={cn(
+                'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-canvas',
+                cat.name === category ? 'bg-brand-soft text-brand' : 'text-ink',
+              )}
             >
-              <span>{cat.icon}</span>
-              <span>{cat.name}</span>
+              <CategoryIcon category={cat.name} size={14} />
+              <span className="flex-1">{cat.name}</span>
+              {cat.name === category && <Check size={13} aria-hidden="true" />}
             </button>
           ))}
         </div>

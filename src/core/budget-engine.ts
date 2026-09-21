@@ -105,7 +105,6 @@ export function getWarningStyle(level: 'normal' | 'warning' | 'exceeded'): {
   color: string;
   bgColor: string;
   label: string;
-  icon: string;
 } {
   switch (level) {
     case 'exceeded':
@@ -113,21 +112,18 @@ export function getWarningStyle(level: 'normal' | 'warning' | 'exceeded'): {
         color: '#DC2626',
         bgColor: '#FEE2E2',
         label: '已超支',
-        icon: '🔴',
       };
     case 'warning':
       return {
         color: '#D97706',
         bgColor: '#FEF3C7',
         label: '接近预算',
-        icon: '🟡',
       };
     case 'normal':
       return {
         color: '#059669',
         bgColor: '#D1FAE5',
         label: '正常',
-        icon: '🟢',
       };
   }
 }

@@ -1,13 +1,18 @@
 // ============================================================
-// TransactionCard 组件 - 首页交易卡片（含封面图）
+// TransactionCard - 封面卡片
+//
+// 只在「封面」视图使用，且只渲染真正有封面图的记录，
+// 避免出现一整屏没有内容的灰色占位块。
 // ============================================================
 
 import { useRef, useState } from 'react';
+import { ImagePlus, X } from 'lucide-react';
 import type { Transaction } from '@/types';
 import { CATEGORIES } from '@/types';
 import { useTransactionStore } from '@/stores/transaction-store';
 import { formatCurrency, formatDateShort } from '@/utils/format';
 import { compressImage } from '@/utils/image';
+import { cn } from '@/utils/cn';
 
 interface TransactionCardProps {
   txn: Transaction;
@@ -21,11 +26,9 @@ export default function TransactionCard({ txn, onClick }: TransactionCardProps) 
 
   const cat = CATEGORIES.find((c) => c.name === txn.category) ?? CATEGORIES[CATEGORIES.length - 1];
   const isExpense = txn.amount > 0;
+  const isTransfer = !isExpense && txn.transactionType === '其他';
 
-  const handleCoverClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    fileInputRef.current?.click();
-  };
+  const openPicker = () => fileInputRef.current?.click();
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -48,80 +51,89 @@ export default function TransactionCard({ txn, onClick }: TransactionCardProps) 
   };
 
   return (
-    <div
-      onClick={onClick}
-      className="bg-white rounded-xl border border-gray-100 overflow-hidden hover:shadow-md transition-shadow cursor-pointer group"
-    >
-      {/* 封面区域 */}
-      <div
-        className="relative h-32 bg-gray-100 flex items-center justify-center overflow-hidden"
-        onClick={handleCoverClick}
-        title="点击更换封面"
+    <div className="group relative overflow-hidden rounded-xl border border-line bg-surface transition-shadow hover:shadow-md">
+      <button
+        type="button"
+        onClick={onClick}
+        className="block w-full text-left"
+        aria-label={`${txn.counterparty || txn.description || '交易'}，${formatCurrency(Math.abs(txn.amount))}`}
       >
-        {txn.coverImage ? (
-          <img
-            src={txn.coverImage}
-            alt=""
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <div
-            className="w-full h-full flex items-center justify-center text-4xl opacity-30"
-            style={{ backgroundColor: cat.color + '20' }}
-          >
-            {cat.icon}
-          </div>
-        )}
-        {/* 上传/更换遮罩 */}
-        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 flex items-center justify-center transition-colors">
-          <span className="text-white text-xs bg-black/50 px-2 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-            {uploading ? '上传中...' : txn.coverImage ? '更换封面' : '添加封面'}
-          </span>
+        {/* 封面图 */}
+        <div className="relative aspect-[4/3] overflow-hidden bg-canvas">
+          {txn.coverImage ? (
+            <img
+              src={txn.coverImage}
+              alt=""
+              width={400}
+              height={300}
+              loading="lazy"
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div
+              className="flex h-full w-full items-center justify-center"
+              style={{ backgroundColor: `${cat.color}14` }}
+            >
+              <ImagePlus size={22} className="text-ink-subtle" aria-hidden="true" />
+            </div>
+          )}
         </div>
-        {/* 删除封面按钮（移动端无 hover，故始终可见） */}
-        {txn.coverImage && (
-          <button
-            onClick={handleRemoveCover}
-            className="absolute top-1.5 right-1.5 w-6 h-6 flex items-center justify-center rounded-full bg-black/50 text-white text-sm leading-none hover:bg-red-500 transition-colors"
-            title="删除封面"
-          >
-            ✕
-          </button>
-        )}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleFileChange}
-          className="hidden"
-        />
-      </div>
 
-      {/* 信息区域 */}
-      <div className="p-3">
-        {/* 分类标签 */}
-        <span
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium mb-2"
-          style={{ backgroundColor: cat.color + '15', color: cat.color }}
+        {/* 信息区 */}
+        <div className="p-2.5">
+          <p className="truncate text-sm font-medium text-ink">
+            {txn.counterparty || '未知交易'}
+          </p>
+          <p className="mt-0.5 truncate text-[11px] text-ink-subtle">
+            {txn.category} · {formatDateShort(txn.transactionTime)}
+          </p>
+          <p
+            className={cn(
+              'tnum mt-1 whitespace-nowrap text-sm font-semibold',
+              isExpense ? 'text-expense' : isTransfer ? 'text-ink-muted' : 'text-income',
+            )}
+          >
+            {isExpense ? '-' : '+'}
+            {formatCurrency(Math.abs(txn.amount))}
+          </p>
+        </div>
+      </button>
+
+      {/* 更换封面：悬停时才出现在桌面端，移动端靠删除按钮旁边的入口 */}
+      <button
+        type="button"
+        onClick={openPicker}
+        aria-label={txn.coverImage ? '更换封面' : '添加封面'}
+        className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/45 text-white opacity-0 transition-opacity hover:bg-black/65 focus-visible:opacity-100 group-hover:opacity-100"
+      >
+        <ImagePlus size={14} aria-hidden="true" />
+      </button>
+
+      {/* 删除封面：始终可见，移动端没有 hover */}
+      {txn.coverImage && (
+        <button
+          type="button"
+          onClick={handleRemoveCover}
+          aria-label="删除封面"
+          className="absolute right-1.5 top-10 flex h-7 w-7 items-center justify-center rounded-full bg-black/45 text-white transition-colors hover:bg-expense"
         >
-          {cat.icon} {txn.category}
-        </span>
+          <X size={14} aria-hidden="true" />
+        </button>
+      )}
 
-        {/* 交易对方 */}
-        <p className="text-sm font-medium text-gray-900 truncate">
-          {txn.counterparty || '未知交易'}
-        </p>
-
-        {/* 金额 + 日期 */}
-        <div className="flex items-center justify-between mt-1.5">
-          <span className={`text-base font-bold font-mono ${isExpense ? 'text-red-500' : 'text-green-500'}`}>
-            {isExpense ? '-' : '+'}{formatCurrency(Math.abs(txn.amount))}
-          </span>
-          <span className="text-xs text-gray-400">
-            {formatDateShort(txn.transactionTime)}
-          </span>
+      {uploading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-surface/80 text-xs text-ink-muted">
+          上传中…
         </div>
-      </div>
+      )}
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFileChange}
+        className="hidden"
+      />
     </div>
   );
 }

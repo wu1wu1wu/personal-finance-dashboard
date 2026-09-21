@@ -31,6 +31,17 @@ export function formatCurrencyShort(amount: number): string {
 }
 
 /**
+ * 只返回金额数字部分（不带单位），用于大字号展示时把「元」单独排版
+ * "6266" → "6,266.00"
+ */
+export function formatAmount(amount: number): string {
+  return Math.abs(amount).toLocaleString('zh-CN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+/**
  * 解析微信CSV金额字符串
  * "¥128.50" → 128.50
  * "-¥50.00" → -50.00

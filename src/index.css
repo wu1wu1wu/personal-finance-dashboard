@@ -1,18 +1,81 @@
 @import "tailwindcss";
 
-/* 全局样式 */
-html {
-  -webkit-tap-highlight-color: transparent;
+/*
+ * 记账场景里只有三种颜色带信息量：支出（红）、收入（绿）、主色（蓝）。
+ * 其余一律走中性灰阶，避免界面上出现互相抢注意力的装饰色。
+ */
+@theme {
+  --color-brand: #2563eb;
+  --color-brand-soft: #eef4ff;
+  --color-expense: #e5484d;
+  --color-expense-soft: #fef3f3;
+  --color-income: #0f9d58;
+  --color-income-soft: #f0faf4;
+  --color-alert: #b45309;
+  --color-alert-soft: #fffbeb;
+
+  --color-canvas: #f7f8fa;
+  --color-surface: #ffffff;
+  --color-line: #e8ebf0;
+  --color-ink: #14181f;
+  --color-ink-muted: #667085;
+  --color-ink-subtle: #98a1ae;
 }
 
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, "Noto Sans", sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    color-scheme: light;
+  }
+
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      "Helvetica Neue", Arial, "Noto Sans SC", "PingFang SC",
+      "Microsoft YaHei", sans-serif;
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  button {
+    touch-action: manipulation;
+  }
+
+  /* 金额、笔数等需要纵向对齐的数字列 */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  /* 键盘焦点必须可见，但不干扰鼠标/触摸点击 */
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
 }
 
-button {
-  touch-action: manipulation;
+/* 弹窗进出场：只动 opacity，避免和居中定位用的 transform 打架 */
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.pfd-fade-in {
+  animation: overlay-in 140ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

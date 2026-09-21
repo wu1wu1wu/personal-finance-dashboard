@@ -28,3 +28,6 @@ png/
 
 # Claude Code 本地配置（含本机绝对路径）
 .claude/
+
+# Playwright 截图与快照（界面走查用，不进仓库）
+.playwright-mcp/

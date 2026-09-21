@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 主色，与前端 src/index.css 里的 color-brand 保持一致 -->
+    <color name="colorPrimary">#2563EB</color>
+    <color name="colorPrimaryDark">#1E40AF</color>
+    <color name="colorAccent">#2563EB</color>
+
+    <!-- 与前端 color-canvas / color-surface 对应，用于状态栏和导航栏 -->
+    <color name="pfdCanvas">#F7F8FA</color>
+    <color name="pfdSurface">#FFFFFF</color>
+</resources>

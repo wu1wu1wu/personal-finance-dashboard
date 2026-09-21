@@ -1,10 +1,13 @@
 // ============================================================
-// BudgetProgressBar 组件 - 预算进度条 + 预警标识
+// BudgetProgressBar - 预算执行进度 + 预警标识
 // ============================================================
 
+import { Wallet } from 'lucide-react';
 import type { BudgetStatus } from '@/types';
 import { getWarningStyle, getCategoryInfo } from '@/core/budget-engine';
 import { formatCurrency } from '@/utils/format';
+import { cn } from '@/utils/cn';
+import CategoryIcon from '@/components/ui/CategoryIcon';
 
 interface BudgetProgressBarProps {
   /** 预算状态 */
@@ -20,80 +23,73 @@ export default function BudgetProgressBar({ status, isTotal = false }: BudgetPro
   const isOver = status.percentage > 1;
 
   return (
-    <div className={`rounded-lg border p-3 ${isTotal ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-100'}`}>
-      {/* 标题行 */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          {catInfo && (
+    <div
+      className={cn(
+        'rounded-xl border p-3',
+        isTotal ? 'border-line bg-canvas' : 'border-line bg-surface',
+      )}
+    >
+      {/* 分类 + 状态 */}
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          {catInfo ? (
             <span
-              className="inline-flex items-center justify-center w-6 h-6 rounded-full text-sm"
-              style={{ backgroundColor: catInfo.color + '18' }}
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
+              style={{ backgroundColor: `${catInfo.color}18`, color: catInfo.color }}
             >
-              {catInfo.icon}
+              <CategoryIcon category={catInfo.name} size={13} />
+            </span>
+          ) : (
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-soft text-brand">
+              <Wallet size={13} aria-hidden="true" />
             </span>
           )}
-          {isTotal && <span className="text-sm">💰</span>}
-          <span className={`font-medium ${isTotal ? 'text-base' : 'text-sm'} text-gray-900`}>
+          <span
+            className={cn(
+              'truncate font-medium text-ink',
+              isTotal ? 'text-base' : 'text-sm',
+            )}
+          >
             {isTotal ? '总预算' : status.category}
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* 预警标签 */}
-          <span
-            className="text-xs px-1.5 py-0.5 rounded-full font-medium"
-            style={{ color: style.color, backgroundColor: style.bgColor }}
-          >
-            {style.icon} {style.label}
-          </span>
-        </div>
+        <span
+          className="shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium"
+          style={{ color: style.color, backgroundColor: style.bgColor }}
+        >
+          {style.label}
+        </span>
       </div>
 
       {/* 进度条 */}
-      <div className="relative h-2.5 bg-gray-100 rounded-full overflow-hidden">
+      <div className="relative h-2 overflow-hidden rounded-full bg-canvas">
         <div
-          className="absolute left-0 top-0 h-full rounded-full transition-all duration-500"
-          style={{
-            width: `${pct}%`,
-            backgroundColor: style.color,
-          }}
+          className="absolute left-0 top-0 h-full rounded-full transition-[width] duration-500"
+          style={{ width: `${pct}%`, backgroundColor: style.color }}
         />
-        {/* 超支部分闪烁效果 */}
-        {isOver && (
-          <div
-            className="absolute top-0 h-full rounded-full animate-pulse"
-            style={{
-              left: '100%',
-              width: `${Math.min((status.percentage - 1) * 100, 20)}%`,
-              backgroundColor: '#DC2626',
-              opacity: 0.6,
-            }}
-          />
-        )}
       </div>
 
-      {/* 金额详情 */}
-      <div className="flex items-center justify-between mt-1.5 text-xs text-gray-500">
+      {/* 金额 */}
+      <div className="tnum mt-1.5 flex items-center justify-between text-xs text-ink-muted">
         <span>
-          已支出 <span className="font-medium text-gray-700">{formatCurrency(status.spent)}</span>
+          已支出 <span className="font-medium text-ink">{formatCurrency(status.spent)}</span>
         </span>
         <span>
-          预算 <span className="font-medium text-gray-700">{formatCurrency(status.limit)}</span>
+          预算 <span className="font-medium text-ink">{formatCurrency(status.limit)}</span>
         </span>
       </div>
 
-      {/* 超支金额提示 */}
       {isOver && (
-        <div className="mt-1 text-xs text-red-600">
-          超支 {formatCurrency(status.spent - status.limit)}
-        </div>
+        <p className="tnum mt-1 text-xs text-expense">
+          已超支 {formatCurrency(status.spent - status.limit)}
+        </p>
       )}
 
-      {/* 剩余金额提示（未超支时） */}
       {!isOver && status.percentage >= 0.5 && (
-        <div className="mt-1 text-xs" style={{ color: style.color }}>
+        <p className="tnum mt-1 text-xs" style={{ color: style.color }}>
           剩余 {formatCurrency(status.limit - status.spent)}（{Math.round((1 - status.percentage) * 100)}%）
-        </div>
+        </p>
       )}
     </div>
   );

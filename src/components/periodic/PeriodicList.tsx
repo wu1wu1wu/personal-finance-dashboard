@@ -1,10 +1,13 @@
 // ============================================================
-// PeriodicList 组件 - 周期性交易列表
+// PeriodicList - 周期性交易列表
 // ============================================================
 
+import { Calendar, CalendarDays, CalendarRange, RefreshCw, X } from 'lucide-react';
 import type { PeriodicTransaction } from '@/types';
-import { formatCurrency } from '@/utils/format';
 import { CATEGORIES } from '@/types';
+import { formatCurrency } from '@/utils/format';
+import { cn } from '@/utils/cn';
+import CategoryIcon from '@/components/ui/CategoryIcon';
 
 interface PeriodicListProps {
   data: PeriodicTransaction[];
@@ -12,104 +15,125 @@ interface PeriodicListProps {
 }
 
 /** 周期标签映射 */
-const PERIOD_LABELS: Record<string, { label: string; icon: string; color: string }> = {
-  monthly: { label: '月度', icon: '📅', color: 'bg-blue-100 text-blue-700' },
-  quarterly: { label: '季度', icon: '📆', color: 'bg-purple-100 text-purple-700' },
-  yearly: { label: '年度', icon: '🗓️', color: 'bg-orange-100 text-orange-700' },
+const PERIOD_LABELS: Record<
+  string,
+  { label: string; icon: typeof Calendar; className: string }
+> = {
+  monthly: { label: '月度', icon: CalendarDays, className: 'bg-brand-soft text-brand' },
+  quarterly: { label: '季度', icon: CalendarRange, className: 'bg-canvas text-ink-muted' },
+  yearly: { label: '年度', icon: Calendar, className: 'bg-canvas text-ink-muted' },
 };
 
 export default function PeriodicList({ data, onTogglePeriodic }: PeriodicListProps) {
   if (data.length === 0) {
     return (
-      <div className="bg-white rounded-xl border border-gray-100 p-4">
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">🔄 周期性交易</h3>
-        <div className="text-center py-8 text-gray-400">
-          <p className="text-3xl mb-2">🔍</p>
-          <p className="text-sm">暂未检测到周期性交易</p>
-          <p className="text-xs mt-1">连续3个月以上相同金额的支出将被自动识别</p>
+      <section className="rounded-2xl border border-line bg-surface p-4">
+        <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-ink">
+          <RefreshCw size={15} className="text-ink-subtle" aria-hidden="true" />
+          周期性交易
+        </h3>
+        <div className="py-8 text-center">
+          <p className="text-sm text-ink-muted">暂未检测到周期性交易</p>
+          <p className="mt-1 text-xs text-ink-subtle">连续 3 个月以上相同金额的支出会被自动识别</p>
         </div>
-      </div>
+      </section>
     );
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-gray-700">🔄 周期性交易</h3>
-        <span className="text-xs text-gray-400">检测到 {data.length} 项</span>
+    <section className="rounded-2xl border border-line bg-surface p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+          <RefreshCw size={15} className="text-ink-subtle" aria-hidden="true" />
+          周期性交易
+        </h3>
+        <span className="text-xs text-ink-subtle tnum">检测到 {data.length} 项</span>
       </div>
 
-      <div className="space-y-2">
+      <ul className="space-y-1">
         {data.map((item, index) => {
           const periodInfo = PERIOD_LABELS[item.period] ?? PERIOD_LABELS.monthly;
+          const PeriodIcon = periodInfo.icon;
           const catInfo = CATEGORIES.find((c) => c.name === item.category);
           const confidencePercent = Math.round(item.confidence * 100);
 
           return (
-            <div
+            <li
               key={`${item.counterparty}-${item.amount}-${index}`}
-              className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-gray-50 transition-colors group"
+              className="group flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-canvas"
             >
-              {/* 分类图标 */}
-              <span className="text-lg flex-shrink-0">
-                {catInfo?.icon ?? '🏷️'}
+              <span
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+                style={{
+                  backgroundColor: `${catInfo?.color ?? '#6B7280'}18`,
+                  color: catInfo?.color ?? '#6B7280',
+                }}
+              >
+                <CategoryIcon category={item.category} size={16} />
               </span>
 
-              {/* 主体信息 */}
-              <div className="flex-1 min-w-0">
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-gray-800 truncate">
+                  <span className="truncate text-sm font-medium text-ink">
                     {item.counterparty || '未知'}
                   </span>
                   <span
-                    className={`px-1.5 py-0.5 text-xs rounded-full ${periodInfo.color}`}
+                    className={cn(
+                      'inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-1.5 py-0.5 text-[11px] font-medium',
+                      periodInfo.className,
+                    )}
                   >
-                    {periodInfo.icon} {periodInfo.label}
+                    <PeriodIcon size={11} aria-hidden="true" />
+                    {periodInfo.label}
                   </span>
                 </div>
-                <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-400">
-                  <span>{item.nextDate ? `下次预计: ${item.nextDate}` : item.lastDate ? `最近: ${item.lastDate}` : ''}</span>
-                  <span>·</span>
-                  <span>{item.category}</span>
-                </div>
+                <p className="mt-0.5 truncate text-xs text-ink-subtle">
+                  {item.nextDate
+                    ? `下次预计 ${item.nextDate}`
+                    : item.lastDate
+                      ? `最近 ${item.lastDate}`
+                      : ''}
+                  {' · '}
+                  {item.category}
+                </p>
               </div>
 
-              {/* 金额 + 置信度 */}
-              <div className="flex-shrink-0 text-right">
-                <div className="text-sm font-semibold text-gray-800">
+              <div className="shrink-0 text-right">
+                <p className="tnum whitespace-nowrap text-sm font-semibold text-ink">
                   {formatCurrency(item.amount)}
-                </div>
-                <div className="flex items-center gap-1 justify-end mt-0.5">
-                  <div className="w-12 h-1 bg-gray-200 rounded-full overflow-hidden">
+                </p>
+                <div className="mt-1 flex items-center justify-end gap-1">
+                  <div className="h-1 w-12 overflow-hidden rounded-full bg-canvas">
                     <div
-                      className={`h-full rounded-full ${
+                      className={cn(
+                        'h-full rounded-full',
                         confidencePercent >= 80
-                          ? 'bg-green-400'
+                          ? 'bg-income'
                           : confidencePercent >= 50
-                            ? 'bg-yellow-400'
-                            : 'bg-orange-400'
-                      }`}
+                            ? 'bg-alert'
+                            : 'bg-ink-subtle',
+                      )}
                       style={{ width: `${confidencePercent}%` }}
                     />
                   </div>
-                  <span className="text-xs text-gray-400">{confidencePercent}%</span>
+                  <span className="tnum text-[11px] text-ink-subtle">{confidencePercent}%</span>
                 </div>
               </div>
 
-              {/* 取消标记按钮 */}
               {onTogglePeriodic && (
                 <button
+                  type="button"
                   onClick={() => onTogglePeriodic(item.counterparty, item.amount)}
-                  className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all text-xs flex-shrink-0"
-                  title="取消周期性标记"
+                  aria-label={`取消标记 ${item.counterparty} 为周期交易`}
+                  className="shrink-0 rounded-md p-1 text-ink-subtle opacity-0 transition-colors hover:bg-expense-soft hover:text-expense focus-visible:opacity-100 group-hover:opacity-100"
                 >
-                  ✕
+                  <X size={14} aria-hidden="true" />
                 </button>
               )}
-            </div>
+            </li>
           );
         })}
-      </div>
-    </div>
+      </ul>
+    </section>
   );
 }

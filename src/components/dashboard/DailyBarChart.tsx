@@ -1,8 +1,9 @@
 // ============================================================
-// DailyBarChart 组件 - 当月每日支出柱状图
+// DailyBarChart - 本月每日支出柱状图
 // ============================================================
 
 import ReactECharts from 'echarts-for-react';
+import { ChartColumn } from 'lucide-react';
 import type { DailySpendPoint } from '@/core/dashboard-engine';
 import { formatCurrency } from '@/utils/format';
 
@@ -11,7 +12,7 @@ interface DailyBarChartProps {
 }
 
 export default function DailyBarChart({ data }: DailyBarChartProps) {
-  // 计算日均值（用于参考线和高亮）
+  // 日均值作为参考线，高于 1.5 倍日均的柱子标红
   const totalSpend = data.reduce((s, d) => s + d.amount, 0);
   const daysWithData = data.filter((d) => d.amount > 0).length;
   const dailyAvg = daysWithData > 0 ? totalSpend / daysWithData : 0;
@@ -29,8 +30,8 @@ export default function DailyBarChart({ data }: DailyBarChartProps) {
     },
     grid: {
       left: 10,
-      right: 10,
-      top: 15,
+      right: 16,
+      top: 22,
       bottom: 5,
       containLabel: true,
     },
@@ -52,7 +53,7 @@ export default function DailyBarChart({ data }: DailyBarChartProps) {
       type: 'value' as const,
       axisLine: { show: false },
       axisTick: { show: false },
-      splitLine: { lineStyle: { color: '#F3F4F6', type: 'dashed' as const } },
+      splitLine: { lineStyle: { color: '#F1F3F7', type: 'dashed' as const } },
       axisLabel: {
         fontSize: 10,
         color: '#9CA3AF',
@@ -66,31 +67,37 @@ export default function DailyBarChart({ data }: DailyBarChartProps) {
           value: d.amount,
           itemStyle: {
             borderRadius: [3, 3, 0, 0],
-            color: d.amount > highlightThreshold ? '#EF4444' : '#6366F1',
+            color: d.amount > highlightThreshold ? '#EF4444' : '#818CF8',
           },
         })),
         barMaxWidth: 12,
-        markLine: dailyAvg > 0
-          ? {
-              silent: true,
-              symbol: 'none' as const,
-              lineStyle: { color: '#F59E0B', type: 'dashed' as const, width: 1.5 },
-              label: {
-                formatter: `日均 ${formatCurrency(dailyAvg)}`,
-                fontSize: 10,
-                color: '#F59E0B',
-              },
-              data: [{ yAxis: dailyAvg }],
-            }
-          : undefined,
+        markLine:
+          dailyAvg > 0
+            ? {
+                silent: true,
+                symbol: 'none' as const,
+                lineStyle: { color: '#F59E0B', type: 'dashed' as const, width: 1.5 },
+                label: {
+                  formatter: `日均 ${formatCurrency(dailyAvg)}`,
+                  fontSize: 10,
+                  color: '#B45309',
+                  // 贴左端显示，否则会被图表右边界裁掉
+                  position: 'insideStartTop' as const,
+                },
+                data: [{ yAxis: dailyAvg }],
+              }
+            : undefined,
       },
     ],
   };
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-4">
-      <h3 className="text-sm font-semibold text-gray-700 mb-3">📊 每日支出</h3>
+    <section className="rounded-2xl border border-line bg-surface p-4">
+      <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-ink">
+        <ChartColumn size={15} className="text-ink-subtle" aria-hidden="true" />
+        每日支出
+      </h3>
       <ReactECharts option={option} style={{ height: 220 }} opts={{ renderer: 'svg' }} />
-    </div>
+    </section>
   );
 }

@@ -1,20 +1,28 @@
 // ============================================================
-// AddTransactionModal - 手动添加交易记录弹窗
+// AddTransactionModal - 手动记一笔
 // ============================================================
 
 import { useState } from 'react';
 import { useTransactionStore } from '@/stores/transaction-store';
 import { CATEGORIES, type Transaction } from '@/types';
 import { generateTransactionId } from '@/utils/id';
+import { cn } from '@/utils/cn';
+import Modal from '@/components/ui/Modal';
+import CategoryIcon from '@/components/ui/CategoryIcon';
 
 interface AddTransactionModalProps {
   onClose: () => void;
 }
 
+type Direction = '支出' | '收入';
+
+const FIELD_CLASS =
+  'w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-ink-subtle focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20';
+
 export default function AddTransactionModal({ onClose }: AddTransactionModalProps) {
   const addTransaction = useTransactionStore((s) => s.addTransaction);
 
-  const [transactionType, setTransactionType] = useState<'支出' | '收入'>('支出');
+  const [transactionType, setTransactionType] = useState<Direction>('支出');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('');
   const [counterparty, setCounterparty] = useState('');
@@ -25,9 +33,11 @@ export default function AddTransactionModal({ onClose }: AddTransactionModalProp
     return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
   });
 
+  const numAmount = Number.parseFloat(amount);
+  const isValid = counterparty.trim().length > 0 && !Number.isNaN(numAmount) && numAmount > 0;
+
   const handleSubmit = () => {
-    const numAmount = parseFloat(amount);
-    if (!counterparty.trim() || isNaN(numAmount) || numAmount <= 0) return;
+    if (!isValid) return;
 
     const transactionTime = `${date} ${time}:00`;
     const finalAmount = transactionType === '支出' ? numAmount : -numAmount;
@@ -55,122 +65,155 @@ export default function AddTransactionModal({ onClose }: AddTransactionModalProp
     onClose();
   };
 
-  const isValid = counterparty.trim() && amount && parseFloat(amount) > 0;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onClose}>
-      <div
-        className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-5 space-y-4"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-bold text-gray-900">新增交易</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
-        </div>
-
-        {/* 类型切换 */}
-        <div className="flex bg-gray-100 rounded-lg p-0.5">
-          <button
-            onClick={() => setTransactionType('支出')}
-            className={`flex-1 py-2 text-sm rounded-md transition-colors ${transactionType === '支出' ? 'bg-red-500 text-white' : 'text-gray-500'}`}
-          >
-            支出
-          </button>
-          <button
-            onClick={() => setTransactionType('收入')}
-            className={`flex-1 py-2 text-sm rounded-md transition-colors ${transactionType === '收入' ? 'bg-green-500 text-white' : 'text-gray-500'}`}
-          >
-            收入
-          </button>
+    <Modal
+      onClose={onClose}
+      title="记一笔"
+      description="金额和交易对方是必填项"
+      footer={
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={!isValid}
+          className="w-full rounded-lg bg-brand py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          保存
+        </button>
+      }
+    >
+      <div className="space-y-4 pb-1">
+        {/* 收/支方向 */}
+        <div role="group" aria-label="收支方向" className="flex rounded-lg bg-canvas p-0.5">
+          {(['支出', '收入'] as const).map((type) => (
+            <button
+              key={type}
+              type="button"
+              onClick={() => setTransactionType(type)}
+              aria-pressed={transactionType === type}
+              className={cn(
+                'flex-1 rounded-md py-2 text-sm font-medium transition-colors',
+                transactionType === type
+                  ? type === '支出'
+                    ? 'bg-surface text-expense shadow-sm'
+                    : 'bg-surface text-income shadow-sm'
+                  : 'text-ink-muted hover:text-ink',
+              )}
+            >
+              {type}
+            </button>
+          ))}
         </div>
 
         {/* 金额 */}
         <div>
-          <label className="text-xs text-gray-500 mb-1 block">金额（元）</label>
+          <label htmlFor="add-amount" className="mb-1 block text-xs text-ink-muted">
+            金额（元）
+          </label>
           <input
+            id="add-amount"
+            name="amount"
             type="number"
+            inputMode="decimal"
+            autoComplete="off"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             placeholder="0.00"
-            className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-lg font-bold focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
             min="0"
             step="0.01"
-            autoFocus
+            className="tnum w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-xl font-semibold text-ink placeholder:text-ink-subtle focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
           />
         </div>
 
         {/* 分类 */}
-        <div>
-          <label className="text-xs text-gray-500 mb-1 block">分类</label>
+        <fieldset>
+          <legend className="mb-1.5 text-xs text-ink-muted">分类</legend>
           <div className="flex flex-wrap gap-1.5">
-            {CATEGORIES.filter((c) => c.name !== '待确认').map((cat) => (
-              <button
-                key={cat.name}
-                onClick={() => setCategory(cat.name === category ? '' : cat.name)}
-                className={`px-3 py-1.5 text-xs rounded-full transition-colors ${cat.name === category ? 'text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-                style={cat.name === category ? { backgroundColor: cat.color } : {}}
-              >
-                {cat.icon} {cat.name}
-              </button>
-            ))}
+            {CATEGORIES.filter((c) => c.name !== '待确认').map((cat) => {
+              const active = cat.name === category;
+              return (
+                <button
+                  key={cat.name}
+                  type="button"
+                  onClick={() => setCategory(active ? '' : cat.name)}
+                  aria-pressed={active}
+                  className={cn(
+                    'inline-flex items-center gap-1 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
+                    active ? 'text-white' : 'bg-canvas text-ink-muted hover:text-ink',
+                  )}
+                  style={active ? { backgroundColor: cat.color } : undefined}
+                >
+                  <CategoryIcon category={cat.name} size={13} />
+                  {cat.name}
+                </button>
+              );
+            })}
           </div>
-        </div>
+        </fieldset>
 
         {/* 交易对方 */}
         <div>
-          <label className="text-xs text-gray-500 mb-1 block">交易对方</label>
+          <label htmlFor="add-counterparty" className="mb-1 block text-xs text-ink-muted">
+            交易对方
+          </label>
           <input
+            id="add-counterparty"
+            name="counterparty"
             type="text"
+            autoComplete="off"
             value={counterparty}
             onChange={(e) => setCounterparty(e.target.value)}
             placeholder="如：美团外卖"
-            className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            className={FIELD_CLASS}
           />
         </div>
 
         {/* 备注 */}
         <div>
-          <label className="text-xs text-gray-500 mb-1 block">备注</label>
+          <label htmlFor="add-description" className="mb-1 block text-xs text-ink-muted">
+            备注
+          </label>
           <input
+            id="add-description"
+            name="description"
             type="text"
+            autoComplete="off"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="选填"
-            className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            className={FIELD_CLASS}
           />
         </div>
 
-        {/* 日期 */}
+        {/* 日期 + 时间 */}
         <div className="flex gap-3">
           <div className="flex-1">
-            <label className="text-xs text-gray-500 mb-1 block">日期</label>
+            <label htmlFor="add-date" className="mb-1 block text-xs text-ink-muted">
+              日期
+            </label>
             <input
+              id="add-date"
+              name="date"
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              className={FIELD_CLASS}
             />
           </div>
           <div className="flex-1">
-            <label className="text-xs text-gray-500 mb-1 block">时间</label>
+            <label htmlFor="add-time" className="mb-1 block text-xs text-ink-muted">
+              时间
+            </label>
             <input
+              id="add-time"
+              name="time"
               type="time"
               value={time}
               onChange={(e) => setTime(e.target.value)}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              className={FIELD_CLASS}
             />
           </div>
         </div>
-
-        {/* 确认按钮 */}
-        <button
-          onClick={handleSubmit}
-          disabled={!isValid}
-          className="w-full py-2.5 text-sm font-medium bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          添加记账
-        </button>
       </div>
-    </div>
+    </Modal>
   );
 }

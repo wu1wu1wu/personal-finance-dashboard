@@ -1,148 +1,106 @@
 // ============================================================
-// 首页 - 交易卡片列表 + 分类筛选 + 分页 + 图表视图切换
+// 看板 - 概览优先
+//
+// 第一屏必须回答三个问题：本月花了多少、花在哪、最近几笔是什么。
+// 封面图单独放一个视图，不占用概览的首屏空间。
 // ============================================================
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ChartPie, ChevronDown, Images, TriangleAlert } from 'lucide-react';
 import { useTransactionStore } from '@/stores/transaction-store';
 import {
   calcMonthlyTrend,
   calcCategoryBreakdown,
   calcDailySpend,
-  calcDashboardMetrics,
 } from '@/core/dashboard-engine';
 import {
   detectPeriodicTransactions,
   calcPeriodicBreakdown,
 } from '@/core/periodic-engine';
 import { getCurrentMonth, getRecentMonths } from '@/utils/date';
-import { formatCurrency } from '@/utils/format';
+import { formatAmount, formatCurrency } from '@/utils/format';
 import { isConsumption } from '@/core/transaction-query';
-import { CATEGORIES } from '@/types';
-import DashboardStats from '@/components/dashboard/DashboardStats';
+import { cn } from '@/utils/cn';
 import MonthlyTrendChart from '@/components/dashboard/MonthlyTrendChart';
 import CategoryPieChart from '@/components/dashboard/CategoryPieChart';
 import DailyBarChart from '@/components/dashboard/DailyBarChart';
 import PeriodicList from '@/components/periodic/PeriodicList';
 import PeriodicBreakdownChart from '@/components/periodic/PeriodicBreakdownChart';
 import TransactionCard from '@/components/transactions/TransactionCard';
-import AddTransactionModal from '@/components/transactions/AddTransactionModal';
+import TransactionRow from '@/components/transactions/TransactionRow';
 
-type ViewMode = 'card' | 'chart';
-const PAGE_SIZE = 10;
+type ViewMode = 'overview' | 'album';
+
+/** 概览里「最近交易」显示条数 */
+const RECENT_COUNT = 5;
+
+const VIEW_OPTIONS: { value: ViewMode; label: string; icon: typeof ChartPie }[] = [
+  { value: 'overview', label: '概览', icon: ChartPie },
+  { value: 'album', label: '封面', icon: Images },
+];
 
 export default function Dashboard() {
-  const {
-    transactions,
-    loaded,
-    loadFromStorage,
-    togglePeriodic,
-  } = useTransactionStore();
+  const { transactions, loaded, loadFromStorage, togglePeriodic } = useTransactionStore();
   const navigate = useNavigate();
 
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
-  const [viewMode, setViewMode] = useState<ViewMode>('card');
-  const [categoryFilter, setCategoryFilter] = useState(''); // 空=全部
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('overview');
 
-  // 加载数据
   useEffect(() => {
     loadFromStorage();
   }, [loadFromStorage]);
 
-  // 切换月份/分类时重置分页
-  useEffect(() => {
-    setVisibleCount(PAGE_SIZE);
-  }, [selectedMonth, categoryFilter]);
-
-  // 动态月份列表：最近6个月 + 所有有交易的月份
+  // 最近 6 个月 + 有数据的月份
   const months = useMemo(() => {
     const recent = getRecentMonths(6);
     const dataMonths = new Set(transactions.map((t) => t.transactionTime.substring(0, 7)));
     recent.forEach((m) => dataMonths.add(m));
-    return [...dataMonths].sort();
+    return [...dataMonths].filter(Boolean).sort();
   }, [transactions]);
 
-  // ===== 卡片视图数据 =====
-  const monthTxns = useMemo(() => {
-    return transactions
-      .filter((t) => t.transactionTime.startsWith(selectedMonth))
-      .sort((a, b) => b.transactionTime.localeCompare(a.transactionTime));
-  }, [transactions, selectedMonth]);
+  const monthTxns = useMemo(
+    () =>
+      transactions
+        .filter((t) => t.transactionTime.startsWith(selectedMonth))
+        .sort((a, b) => b.transactionTime.localeCompare(a.transactionTime)),
+    [transactions, selectedMonth],
+  );
 
-  // 按分类筛选
-  const filteredTransactions = useMemo(() => {
-    if (!categoryFilter) return monthTxns;
-    return monthTxns.filter((t) => t.category === categoryFilter);
-  }, [monthTxns, categoryFilter]);
-
-  // 分页
-  const visibleTransactions = useMemo(() => {
-    return filteredTransactions.slice(0, visibleCount);
-  }, [filteredTransactions, visibleCount]);
-
-  const hasMore = visibleCount < filteredTransactions.length;
-
-  // 滚动到底自动加载下一批卡片
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el || !hasMore) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting) {
-          setVisibleCount((prev) => prev + PAGE_SIZE);
-        }
-      },
-      { rootMargin: '240px' },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [hasMore, filteredTransactions.length]);
-
-  // 当月支出/收入统计（按筛选后）；转账不计入支出
+  // 本月口径：转账不计入支出
   const monthStats = useMemo(() => {
-    const expense = filteredTransactions.filter(isConsumption).reduce((s, t) => s + t.amount, 0);
-    const income = filteredTransactions.filter((t) => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
-    const transfer = filteredTransactions
+    const expense = monthTxns.filter(isConsumption).reduce((s, t) => s + t.amount, 0);
+    const income = monthTxns
+      .filter((t) => t.amount < 0)
+      .reduce((s, t) => s + Math.abs(t.amount), 0);
+    const transfer = monthTxns
       .filter((t) => t.amount > 0 && !isConsumption(t))
       .reduce((s, t) => s + t.amount, 0);
-    return { expense, income, transfer, count: filteredTransactions.length };
-  }, [filteredTransactions]);
+    return { expense, income, balance: income - expense, transfer, count: monthTxns.length };
+  }, [monthTxns]);
 
-  // 待确认数量（收件箱入口）
   const pendingCount = useMemo(
     () => transactions.filter((t) => t.category === '待确认').length,
     [transactions],
   );
 
-  // ===== 图表视图数据 =====
-  const trendData = useMemo(() => calcMonthlyTrend(transactions), [transactions]);
   const categoryData = useMemo(
     () => calcCategoryBreakdown(transactions, selectedMonth),
     [transactions, selectedMonth],
   );
+  const trendData = useMemo(() => calcMonthlyTrend(transactions), [transactions]);
   const dailyData = useMemo(
     () => calcDailySpend(transactions, selectedMonth),
     [transactions, selectedMonth],
   );
-  const metrics = useMemo(
-    () => calcDashboardMetrics(transactions, selectedMonth),
-    [transactions, selectedMonth],
-  );
-  const periodicData = useMemo(
-    () => detectPeriodicTransactions(transactions),
-    [transactions],
-  );
+  const periodicData = useMemo(() => detectPeriodicTransactions(transactions), [transactions]);
   const periodicBreakdown = useMemo(
     () => calcPeriodicBreakdown(transactions, selectedMonth),
     [transactions, selectedMonth],
   );
 
-  const handleCategoryClick = (category: string) => {
-    navigate(`/transactions?category=${encodeURIComponent(category)}`);
-  };
+  const recentTxns = monthTxns.slice(0, RECENT_COUNT);
+  const coveredTxns = useMemo(() => monthTxns.filter((t) => t.coverImage), [monthTxns]);
 
   const handleUnmarkPeriodic = (counterparty: string, amount: number) => {
     for (const txn of transactions) {
@@ -156,196 +114,220 @@ export default function Dashboard() {
     }
   };
 
-  const handleCardClick = (txn: typeof transactions[number]) => {
-    navigate(`/transactions?category=${encodeURIComponent(txn.category)}`);
-  };
-
   const isLoading = !loaded;
+  const isEmpty = !isLoading && transactions.length === 0;
 
   return (
     <div className="space-y-4">
       {/* 标题栏 */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">记账看板</h1>
-        <div className="flex items-center gap-2">
-          <div className="flex bg-gray-100 rounded-lg p-0.5">
-            <button
-              onClick={() => setViewMode('card')}
-              className={`px-3 py-1 text-sm rounded-md transition-colors ${viewMode === 'card' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}
-            >
-              📋 卡片
-            </button>
-            <button
-              onClick={() => setViewMode('chart')}
-              className={`px-3 py-1 text-sm rounded-md transition-colors ${viewMode === 'chart' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}
-            >
-              📊 图表
-            </button>
-          </div>
-        </div>
-      </div>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold text-ink">看板</h1>
 
-      {/* 待确认收件箱入口 */}
-      {pendingCount > 0 && (
-        <button
-          onClick={() => navigate('/transactions?pending=1')}
-          className="w-full flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-left hover:bg-amber-100 transition-colors"
+        <div
+          role="group"
+          aria-label="看板视图"
+          className="flex rounded-lg bg-canvas p-0.5"
         >
-          <span className="text-sm text-amber-800">
-            有 <span className="font-bold">{pendingCount}</span> 笔交易待确认分类
-          </span>
-          <span className="text-xs text-amber-600">去处理 →</span>
-        </button>
-      )}
-
-      {/* 月份选择 */}
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-gray-500">月份：</span>
-        <div className="flex gap-1">
-          {months.map((m) => (
-            <button
-              key={m}
-              onClick={() => setSelectedMonth(m)}
-              className={`px-3 py-1 text-sm rounded-lg transition-colors ${m === selectedMonth ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-            >
-              {m.substring(5)}月
-            </button>
-          ))}
+          {VIEW_OPTIONS.map((opt) => {
+            const Icon = opt.icon;
+            const active = viewMode === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setViewMode(opt.value)}
+                aria-pressed={active}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+                  active ? 'bg-surface text-ink shadow-sm' : 'text-ink-muted hover:text-ink',
+                )}
+              >
+                <Icon size={14} aria-hidden="true" />
+                {opt.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* 加载 */}
-      {isLoading && (
-        <div className="text-center py-12 text-gray-400">
-          <p className="text-sm">加载中...</p>
+      {/* 月份切换：横向滚动，避免窄屏折行 */}
+      {months.length > 0 && (
+        <div
+          role="group"
+          aria-label="选择月份"
+          className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          <div className="flex w-max gap-1.5">
+            {months.map((m) => {
+              const active = m === selectedMonth;
+              const [, month] = m.split('-');
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setSelectedMonth(m)}
+                  aria-pressed={active}
+                  aria-label={`${m.replace('-', '年')}月`}
+                  className={cn(
+                    'tnum shrink-0 rounded-lg px-3 py-1.5 text-sm transition-colors',
+                    active
+                      ? 'bg-brand font-medium text-white'
+                      : 'bg-surface text-ink-muted hover:text-ink',
+                  )}
+                >
+                  {Number(month)}月
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
-      {/* 空状态 */}
-      {!isLoading && transactions.length === 0 && (
-        <div className="text-center py-16 text-gray-400">
-          <p className="text-5xl mb-4">📊</p>
-          <p className="text-lg">暂无交易数据</p>
-          <p className="text-sm mt-1">前往「设置」页面导入交易记录</p>
+      {isLoading && <p className="py-12 text-center text-sm text-ink-subtle">加载中…</p>}
+
+      {isEmpty && (
+        <div className="rounded-2xl border border-line bg-surface py-16 text-center">
+          <p className="text-base font-medium text-ink">还没有记账记录</p>
+          <p className="mt-1 text-sm text-ink-subtle">
+            点右下角加号手动记一笔，或到「设置」导入微信账单
+          </p>
         </div>
       )}
 
-      {/* ====== 卡片视图 ====== */}
-      {!isLoading && transactions.length > 0 && viewMode === 'card' && (
+      {!isLoading && !isEmpty && viewMode === 'overview' && (
         <>
-          {/* 月度统计条 */}
-          <div className="flex gap-3 text-sm">
-            <div className="bg-white rounded-lg border border-gray-100 px-4 py-2 flex-1 text-center">
-              <span className="text-gray-400">支出</span>{' '}
-              <span className="font-bold text-red-500">{formatCurrency(monthStats.expense)}</span>
-            </div>
-            <div className="bg-white rounded-lg border border-gray-100 px-4 py-2 flex-1 text-center">
-              <span className="text-gray-400">收入</span>{' '}
-              <span className="font-bold text-green-500">{formatCurrency(monthStats.income)}</span>
-            </div>
-            <div className="bg-white rounded-lg border border-gray-100 px-4 py-2 flex-1 text-center">
-              <span className="text-gray-400">笔数</span>{' '}
-              <span className="font-bold text-gray-700">{monthStats.count}</span>
-            </div>
-          </div>
-
-          {monthStats.transfer > 0 && (
-            <p className="text-xs text-gray-400 text-center">
-              另有转账 {formatCurrency(monthStats.transfer)}，不计入支出
-            </p>
-          )}
-
-          {/* 分类筛选标签 */}
-          <div className="flex flex-wrap gap-1.5">
+          {/* 待确认提醒 */}
+          {pendingCount > 0 && (
             <button
-              onClick={() => setCategoryFilter('')}
-              className={`px-3 py-1 text-xs rounded-full transition-colors ${!categoryFilter ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+              type="button"
+              onClick={() => navigate('/transactions?pending=1')}
+              className="flex w-full items-center gap-2.5 rounded-xl border border-alert-soft bg-alert-soft px-3.5 py-3 text-left transition-colors hover:brightness-[0.98]"
             >
-              全部
+              <TriangleAlert size={17} className="shrink-0 text-alert" aria-hidden="true" />
+              <span className="min-w-0 flex-1 text-sm text-alert">
+                <span className="tnum font-semibold">{pendingCount}</span> 笔交易待确认分类
+              </span>
+              <span className="shrink-0 text-xs text-alert/80">去处理</span>
             </button>
-            {CATEGORIES.filter((c) => c.name !== '待确认').map((cat) => (
-              <button
-                key={cat.name}
-                onClick={() => setCategoryFilter(cat.name === categoryFilter ? '' : cat.name)}
-                className={`px-3 py-1 text-xs rounded-full transition-colors ${cat.name === categoryFilter ? 'text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-                style={cat.name === categoryFilter ? { backgroundColor: cat.color } : {}}
-              >
-                {cat.icon} {cat.name}
-              </button>
-            ))}
-          </div>
-
-          {/* 无匹配提示 */}
-          {filteredTransactions.length === 0 && (
-            <div className="text-center py-12 text-gray-400">
-              <p className="text-lg">该分类下暂无交易</p>
-              <button
-                onClick={() => setCategoryFilter('')}
-                className="text-sm text-blue-500 hover:underline mt-1"
-              >
-                清除筛选
-              </button>
-            </div>
           )}
 
-          {/* 卡片网格 */}
-          {filteredTransactions.length > 0 && (
-            <>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                {visibleTransactions.map((txn) => (
-                  <TransactionCard
+          {/* 本月收支：整个页面的主角 */}
+          <section className="rounded-2xl border border-line bg-surface p-5">
+            <p className="text-xs text-ink-subtle">本月支出</p>
+            <p className="mt-1 flex items-baseline gap-1">
+              <span className="tnum text-[32px] font-semibold leading-none text-expense">
+                {formatAmount(monthStats.expense)}
+              </span>
+              <span className="text-sm text-expense">元</span>
+            </p>
+
+            <div className="mt-4 grid grid-cols-2 gap-3 border-t border-line pt-3.5">
+              <div>
+                <p className="text-xs text-ink-subtle">收入</p>
+                <p className="tnum mt-0.5 text-sm font-medium text-income">
+                  {formatCurrency(monthStats.income)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-ink-subtle">结余</p>
+                <p
+                  className={cn(
+                    'tnum mt-0.5 text-sm font-medium',
+                    monthStats.balance >= 0 ? 'text-ink' : 'text-ink-muted',
+                  )}
+                >
+                  {monthStats.balance >= 0 ? '' : '-'}
+                  {formatCurrency(Math.abs(monthStats.balance))}
+                </p>
+              </div>
+            </div>
+
+            <p className="mt-3 border-t border-line pt-3 text-[11px] text-ink-subtle">
+              共 {monthStats.count} 笔
+              {monthStats.transfer > 0 && ` · 另有转账 ${formatCurrency(monthStats.transfer)}，不计入支出`}
+            </p>
+          </section>
+
+          <CategoryPieChart
+            data={categoryData}
+            onCategoryClick={(category) =>
+              navigate(`/transactions?category=${encodeURIComponent(category)}`)
+            }
+          />
+
+          {/* 最近交易 */}
+          {recentTxns.length > 0 && (
+            <section className="rounded-2xl border border-line bg-surface p-2">
+              <div className="flex items-center justify-between px-2 pb-1 pt-2">
+                <h2 className="text-sm font-semibold text-ink">最近交易</h2>
+                <button
+                  type="button"
+                  onClick={() => navigate('/transactions')}
+                  className="text-xs text-brand hover:underline"
+                >
+                  查看全部
+                </button>
+              </div>
+              <ul>
+                {recentTxns.map((txn) => (
+                  <TransactionRow
                     key={txn.id}
                     txn={txn}
-                    onClick={() => handleCardClick(txn)}
+                    onClick={() => navigate(`/transactions?category=${encodeURIComponent(txn.category)}`)}
                   />
                 ))}
-              </div>
+              </ul>
+            </section>
+          )}
 
-              {/* 滚动到底自动加载下一批；按钮作为兜底 */}
-              {hasMore && (
-                <div ref={sentinelRef} className="text-center">
-                  <button
-                    onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
-                    className="px-6 py-2 text-sm bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    加载更多（{filteredTransactions.length - visibleCount} 条剩余）
-                  </button>
-                </div>
-              )}
-            </>
+          <MonthlyTrendChart data={trendData} />
+
+          {/* 次要分析默认收起，别让概览变成一张长报表 */}
+          <details className="group rounded-2xl border border-line bg-surface">
+            <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3.5 text-sm font-medium text-ink [&::-webkit-details-marker]:hidden">
+              更多分析
+              <ChevronDown
+                size={16}
+                className="text-ink-subtle transition-transform group-open:rotate-180"
+                aria-hidden="true"
+              />
+            </summary>
+            <div className="space-y-4 border-t border-line p-4">
+              <DailyBarChart data={dailyData} />
+              <PeriodicBreakdownChart data={periodicBreakdown} />
+              <PeriodicList data={periodicData} onTogglePeriodic={handleUnmarkPeriodic} />
+            </div>
+          </details>
+        </>
+      )}
+
+      {/* ====== 封面视图 ====== */}
+      {!isLoading && !isEmpty && viewMode === 'album' && (
+        <>
+          {coveredTxns.length > 0 ? (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {coveredTxns.map((txn) => (
+                <TransactionCard
+                  key={txn.id}
+                  txn={txn}
+                  onClick={() =>
+                    navigate(`/transactions?category=${encodeURIComponent(txn.category)}`)
+                  }
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-line bg-surface py-16 text-center">
+              <Images size={28} className="mx-auto text-ink-subtle" aria-hidden="true" />
+              <p className="mt-3 text-sm font-medium text-ink">本月还没有账单封面</p>
+              <p className="mt-1 text-sm text-ink-subtle">
+                在「明细」里点开任意一笔记录即可添加图片
+              </p>
+            </div>
           )}
         </>
       )}
 
-      {/* ===== 浮动添加按钮 ===== */}
-      {viewMode === 'card' && (
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="fixed bottom-20 right-6 w-14 h-14 bg-blue-500 text-white rounded-full shadow-lg hover:bg-blue-600 transition-colors flex items-center justify-center text-2xl z-40 md:bottom-6"
-          title="新增交易"
-        >
-          +
-        </button>
-      )}
-
-      {/* 新增交易弹窗 */}
-      {showAddModal && <AddTransactionModal onClose={() => setShowAddModal(false)} />}
-
-      {/* ====== 图表视图 ====== */}
-      {!isLoading && transactions.length > 0 && viewMode === 'chart' && (
-        <div className="space-y-6">
-          <DashboardStats metrics={metrics} />
-          <MonthlyTrendChart data={trendData} />
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <CategoryPieChart data={categoryData} onCategoryClick={handleCategoryClick} />
-            <DailyBarChart data={dailyData} />
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <PeriodicBreakdownChart data={periodicBreakdown} />
-            <PeriodicList data={periodicData} onTogglePeriodic={handleUnmarkPeriodic} />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

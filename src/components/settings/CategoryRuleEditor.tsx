@@ -1,11 +1,20 @@
 // ============================================================
-// CategoryRuleEditor 组件 - 分类规则编辑器
+// CategoryRuleEditor - 自定义分类规则编辑器
 // ============================================================
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { ChevronDown, Pencil, Plus, Trash } from 'lucide-react';
 import { useClassificationStore } from '@/stores/classification-store';
 import { CATEGORIES } from '@/types';
 import type { ClassificationRule } from '@/types';
+import { BUILTIN_RULES } from '@/constants/rules';
+import CategoryIcon from '@/components/ui/CategoryIcon';
+
+const INPUT_CLASS =
+  'w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-subtle focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20';
+
+/** 分类关键词的分隔符：中英文逗号、顿号、分号、空格 */
+const KEYWORD_SEPARATOR = /[,，、;；\s]+/;
 
 export default function CategoryRuleEditor() {
   const { customRules, addCustomRule, updateCustomRule, deleteCustomRule, loadFromStorage } =
@@ -16,17 +25,26 @@ export default function CategoryRuleEditor() {
   const [keywords, setKeywords] = useState('');
   const [category, setCategory] = useState<string>(CATEGORIES[0].name);
 
-  // 确保已加载
-  if (!useClassificationStore.getState().loaded) {
-    loadFromStorage();
-  }
+  // 原来在 render 里直接调用 loadFromStorage()，改成 effect 避免渲染期副作用
+  useEffect(() => {
+    if (!useClassificationStore.getState().loaded) {
+      void loadFromStorage();
+    }
+  }, [loadFromStorage]);
+
+  /** 内置规则按分类汇总关键词，直接读规则表，避免维护两份说明 */
+  const builtinByCategory = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const rule of BUILTIN_RULES) {
+      const list = map.get(rule.category) ?? [];
+      list.push(...rule.keywords);
+      map.set(rule.category, list);
+    }
+    return map;
+  }, []);
 
   const handleSubmit = () => {
-    const kwList = keywords
-      .split(/[,，、\s]+/)
-      .map((k) => k.trim())
-      .filter(Boolean);
-
+    const kwList = keywords.split(KEYWORD_SEPARATOR).map((k) => k.trim()).filter(Boolean);
     if (kwList.length === 0) return;
 
     if (editId) {
@@ -40,13 +58,9 @@ export default function CategoryRuleEditor() {
 
   const handleEdit = (rule: ClassificationRule) => {
     setEditId(rule.id);
-    setKeywords(rule.keywords.join('，'));
+    setKeywords(rule.keywords.join('、'));
     setCategory(rule.category);
     setShowForm(true);
-  };
-
-  const handleDelete = (id: string) => {
-    deleteCustomRule(id);
   };
 
   const resetForm = () => {
@@ -61,47 +75,53 @@ export default function CategoryRuleEditor() {
 
   return (
     <div className="space-y-4">
-      {/* 标题栏 */}
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900">自定义分类规则</h3>
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-medium text-ink-muted">
+          命中自定义规则的关键词优先按你的设定分类
+        </h3>
         {!showForm && (
           <button
+            type="button"
             onClick={() => setShowForm(true)}
-            className="px-3 py-1.5 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            className="flex shrink-0 items-center gap-1 rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-brand/90"
           >
-            + 添加规则
+            <Plus size={13} aria-hidden="true" />
+            添加规则
           </button>
         )}
       </div>
 
-      {/* 添加/编辑表单 */}
       {showForm && (
-        <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+        <div className="space-y-3 rounded-xl bg-canvas p-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="rule-keywords" className="mb-1 block text-xs font-medium text-ink">
               关键词（用逗号或空格分隔）
             </label>
             <input
+              id="rule-keywords"
+              name="keywords"
               type="text"
+              autoComplete="off"
               value={keywords}
               onChange={(e) => setKeywords(e.target.value)}
-              placeholder="例如：星巴克，瑞幸，Manner"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              placeholder="如：星巴克，瑞幸，Manner"
+              className={INPUT_CLASS}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="rule-category" className="mb-1 block text-xs font-medium text-ink">
               目标分类
             </label>
             <select
+              id="rule-category"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              className={INPUT_CLASS}
             >
               {CATEGORIES.filter((c) => c.name !== '待确认').map((cat) => (
                 <option key={cat.name} value={cat.name}>
-                  {cat.icon} {cat.name}
+                  {cat.name}
                 </option>
               ))}
             </select>
@@ -109,15 +129,17 @@ export default function CategoryRuleEditor() {
 
           <div className="flex gap-2">
             <button
+              type="button"
               onClick={handleSubmit}
               disabled={!keywords.trim()}
-              className="px-4 py-1.5 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="rounded-lg bg-brand px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {editId ? '保存修改' : '添加规则'}
             </button>
             <button
+              type="button"
               onClick={resetForm}
-              className="px-4 py-1.5 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+              className="rounded-lg bg-surface px-4 py-1.5 text-sm text-ink-muted transition-colors hover:text-ink"
             >
               取消
             </button>
@@ -125,89 +147,89 @@ export default function CategoryRuleEditor() {
         </div>
       )}
 
-      {/* 自定义规则列表 */}
       {customRules.length === 0 ? (
-        <div className="text-center py-6 text-gray-400">
-          <p className="text-sm">暂无自定义规则</p>
-          <p className="text-xs mt-1">添加关键词规则可自动分类交易记录</p>
+        <div className="rounded-xl border border-line bg-surface py-8 text-center">
+          <p className="text-sm text-ink-muted">暂无自定义规则</p>
+          <p className="mt-1 text-xs text-ink-subtle">添加关键词后，含该词的交易会自动归到你指定的分类</p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <ul className="space-y-2">
           {customRules.map((rule) => {
             const cat = getCategoryInfo(rule.category);
             return (
-              <div
+              <li
                 key={rule.id}
-                className="flex items-center gap-3 bg-white border border-gray-100 rounded-lg p-3 hover:shadow-sm transition-shadow"
+                className="flex items-center gap-3 rounded-xl border border-line bg-surface p-3 transition-shadow hover:shadow-sm"
               >
-                {/* 分类标签 */}
                 <span
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0"
-                  style={{ backgroundColor: cat.color + '18', color: cat.color }}
+                  className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium"
+                  style={{ backgroundColor: `${cat.color}18`, color: cat.color }}
                 >
-                  {cat.icon} {cat.name}
+                  <CategoryIcon category={cat.name} size={12} />
+                  {cat.name}
                 </span>
 
-                {/* 关键词列表 */}
-                <div className="flex-1 flex flex-wrap gap-1">
-                  {rule.keywords.map((kw, i) => (
-                    <span
-                      key={i}
-                      className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-xs"
-                    >
+                <div className="flex min-w-0 flex-1 flex-wrap gap-1">
+                  {rule.keywords.map((kw) => (
+                    <span key={kw} className="rounded bg-canvas px-1.5 py-0.5 text-xs text-ink-muted">
                       {kw}
                     </span>
                   ))}
                 </div>
 
-                {/* 操作按钮 */}
-                <div className="flex gap-1 flex-shrink-0">
+                <div className="flex shrink-0 gap-1">
                   <button
+                    type="button"
                     onClick={() => handleEdit(rule)}
-                    className="p-1 text-gray-400 hover:text-blue-500 transition-colors"
-                    title="编辑"
+                    aria-label={`修改规则 ${rule.keywords.join('、')}`}
+                    className="rounded-md p-1.5 text-ink-subtle transition-colors hover:bg-canvas hover:text-brand"
                   >
-                    ✎
+                    <Pencil size={14} aria-hidden="true" />
                   </button>
                   <button
-                    onClick={() => handleDelete(rule.id)}
-                    className="p-1 text-gray-400 hover:text-red-500 transition-colors"
-                    title="删除"
+                    type="button"
+                    onClick={() => deleteCustomRule(rule.id)}
+                    aria-label={`删除规则 ${rule.keywords.join('、')}`}
+                    className="rounded-md p-1.5 text-ink-subtle transition-colors hover:bg-expense-soft hover:text-expense"
                   >
-                    ✕
+                    <Trash size={14} aria-hidden="true" />
                   </button>
                 </div>
-              </div>
+              </li>
             );
           })}
-        </div>
+        </ul>
       )}
 
-      {/* 内置规则提示 */}
-      <details className="text-sm text-gray-500">
-        <summary className="cursor-pointer hover:text-gray-700">
-          查看内置分类规则（{CATEGORIES.filter((c) => c.name !== '待确认').length}个分类）
+      {/* 内置规则说明 */}
+      <details className="group rounded-xl border border-line bg-surface">
+        <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm text-ink-muted [&::-webkit-details-marker]:hidden">
+          查看内置分类规则（{builtinByCategory.size} 个分类）
+          <ChevronDown
+            size={15}
+            className="text-ink-subtle transition-transform group-open:rotate-180"
+            aria-hidden="true"
+          />
         </summary>
-        <div className="mt-2 space-y-1 pl-4">
-          {CATEGORIES.filter((c) => c.name !== '待确认').map((cat) => (
-            <div key={cat.name} className="flex items-start gap-2">
-              <span>
-                {cat.icon} {cat.name}:
-              </span>
-              <span className="text-gray-400 text-xs">
-                {cat.name === '餐饮美食' && '美团、饿了么、星巴克、外卖...'}
-                {cat.name === '交通出行' && '滴滴、高德、地铁、公交...'}
-                {cat.name === '购物消费' && '淘宝、京东、拼多多、超市...'}
-                {cat.name === '休闲娱乐' && '电影、游戏、KTV、旅游...'}
-                {cat.name === '居住生活' && '房租、物业、水电、宽带...'}
-                {cat.name === '医疗健康' && '医院、药房、体检、保险...'}
-                {cat.name === '教育学习' && '培训、课程、书籍、考试...'}
-                {cat.name === '其他' && '转账、红包、提现、退款...'}
-              </span>
-            </div>
-          ))}
-        </div>
+        <ul className="space-y-2 border-t border-line p-4">
+          {CATEGORIES.filter((c) => c.name !== '待确认').map((cat) => {
+            const keywords = builtinByCategory.get(cat.name) ?? [];
+            return (
+              <li key={cat.name} className="flex gap-2 text-xs">
+                <span className="flex w-24 shrink-0 items-center gap-1 text-ink">
+                  <CategoryIcon category={cat.name} size={13} />
+                  {cat.name}
+                </span>
+                <span className="min-w-0 flex-1 text-ink-subtle">
+                  {keywords.slice(0, 12).join('、')}
+                  {keywords.length > 12 && ' …'}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
       </details>
+
     </div>
   );
 }
