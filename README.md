@@ -1,32 +1,182 @@
-# React + TypeScript + Vite
+# 个人记账看板
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+一个纯本地的个人记账应用：从微信支付账单和支付通知中采集交易，自动分类、统计、做预算。没有后端、没有账号，数据全部保存在你自己的设备上。
 
-Currently, two official plugins are available:
+既可以当网页用，也可以打包成安卓 App 装到手机上。
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 功能
 
-## React Compiler
+### 记账
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **账单导入**：支持微信支付导出的 CSV / XLSX 账单，自动识别 GBK / UTF-8 编码，按交易单号去重，重复导入不会产生重复记录
+- **自动记账（安卓）**：读取银行短信与微信 / 支付宝的支付通知，自动生成交易记录
+- **账单回填**：自动捕获的记录只有金额和时间（微信通知不带商户名），导入账单后会自动按「金额 + 时间」把商户、商品、真实交易单号补全，并重新分类
+- **手动补录**：个别遗漏的交易可以手动添加
 
-## Expanding the Oxlint configuration
+### 分类
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+- 10 个分类：餐饮美食、交通出行、购物消费、休闲娱乐、居住生活、医疗健康、教育学习、转账、其他、待确认
+- 内置关键词规则，可叠加自定义规则（自定义优先级更高）
+- **反馈学习**：手动修改分类会累积反馈，同一关键词达到 3 次自动升级为规则
+- **习惯学习**：从历史账单学习「金额分档 + 时段 → 分类」，置信度足够高时才给出分类，并明确标注为「推测」
+- **转账类**（转账 / 红包 / 提现 / 退款）单独归类，不计入支出统计与分类饼图
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+### 查看
+
+- **看板**：KPI 指标、月度收支趋势、分类占比、每日支出、周期性交易识别
+- **明细**：按分类 / 月份 / 收支方向筛选，按时间或金额排序，支持关键词搜索与滚动分页；点任意一行看详情，可直接删除
+- **待确认收件箱**：自动捕获但未能分类的记录集中在此，一键归类
+
+### 预算
+
+- 分类预算与总预算，按月份独立设置
+- 执行率到达 80% 黄色预警、100% 红色超支
+
+### 数据
+
+- 全部本地存储，无后端、无账号、不联网上传
+- 一键导出 / 恢复 JSON 备份
+- 一键清空所有数据
+- 自动脱敏：银行卡号、手机号、姓名、交易单号
+
+## 技术栈
+
+| 层 | 选型 |
+|---|---|
+| 前端 | React 19 + TypeScript 6（strict）+ Vite 8 |
+| 状态 | Zustand 5（手动持久化） |
+| 样式 | Tailwind CSS 4 |
+| 图表 | ECharts 6 |
+| 路由 | react-router-dom v7 |
+| 账单解析 | papaparse + xlsx |
+| 测试 | Vitest 4（127 个单测） |
+| 代码检查 | oxlint |
+| 移动端 | Capacitor 8 + @capacitor/preferences |
+
+没有第三方 UI 组件库，所有界面元素均用 Tailwind 手写。
+
+## 快速开始
+
+```bash
+npm install
+npm run dev      # 开发服务器，端口 3000
+npm run build    # 类型检查 + 生产构建，输出到 dist/
+npm run test     # 运行单元测试
+npm run lint     # 代码检查
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## 打包安卓 App
+
+需要 **JDK 21**（Capacitor 8 要求，17 不行）与 Android SDK。
+
+```bash
+npm run build
+npx cap sync android
+cd android && ./gradlew assembleDebug    # Windows Git Bash 用 sh gradlew
+```
+
+产物在 `android/app/build/outputs/apk/debug/app-debug.apk`，传到手机安装即可。
+
+首次构建会联网下载 Gradle 与依赖，耗时较长。国内网络可在 `android/gradle/wrapper/gradle-wrapper.properties` 中把 Gradle 源换成腾讯云镜像，并用 `~/.gradle/init.d/` 配置阿里云 Maven 镜像。
+
+## 数据存放
+
+数据键名统一以 `pfd_` 开头：
+
+| 环境 | 存储方式 |
+|---|---|
+| 网页 | `localStorage` |
+| 安卓 App | Capacitor `Preferences`（底层 SharedPreferences） |
+
+存储层通过 `StorageAdapter` 抽象，接口为 `get` / `set` / `remove` / `clear` / `keys`，未来可替换为 SQLite 或其他实现。
+
+## 使用中可能遇到的问题
+
+### 1. 微信支付通知里没有商户名，这是微信的设计
+
+微信支付通知的内容只有「微信支付 / 已支付 ¥23.00」，商户名、商品、订单号都不在通知里。这不是读取失败，是数据本身不存在，任何 App 都拿不到。
+
+所以自动捕获的记录只有金额、时间和收支方向，需要靠两种方式补全：
+
+- **导入微信账单**：账单里带真实商户、商品和交易单号，导入时会自动按「金额 + 时间」回填到对应记录并重新分类。导出路径：微信 → 我 → 服务 → 钱包 → 账单 → 右上角常见问题 → 下载账单 → 用于个人对账。
+- **待确认收件箱**：账单导出之前，未分类的记录会集中在这里，点开一键归类即可。
+
+导出频率随意，一个月一次甚至更久都可以，回填不依赖导出频率。
+
+### 2. 自动记账在国产系统上需要额外设置
+
+- 必须手动开启「通知使用权」（在系统设置里开，App 无法代开）
+- 建议把 App 的省电策略设为「不限制」并允许自启动，否则系统会杀掉通知监听服务
+- 监听服务未运行时，只有在通知**还留在通知栏**的情况下，打开 App 才能补扫到；已经被划掉或点开过的通知无法找回
+- 短信通道需要短信权限，且不同银行的短信格式差异很大，可能识别不准
+
+### 3. 分类可能不准
+
+关键词规则只覆盖常见商户，新商户会落到「待确认」；习惯学习的推测分类也可能猜错（因此带「推测」标记）。
+
+两种修正方式：在明细里直接改分类（会进入反馈学习），或在「设置 → 分类规则」里自己加关键词。
+
+### 4. 账单回填可能配错商户名
+
+回填规则是：金额完全一致 + 收支方向一致 + 时间差在 24 小时内，并且按时间最接近的一对一配对。
+
+如果同一天有多笔金额完全相同的交易，理论上可能张冠李戴，把商户名配到另一笔上。**金额和收支方向不会出错**，只有商户名和分类可能受影响。发现配错时在明细里改一下分类即可。
+
+### 5. 只支持微信账单
+
+支付宝账单暂不支持导入，支付宝通知的解析也未经充分验证。
+
+### 6. 存储容量与数据安全
+
+- 交易封面图以 base64 形式存在本地，图片较多时会明显占用存储空间
+- 网页版的 `localStorage` 可能被浏览器清理；App 版更稳，但「清除应用数据」同样会清空
+- 建议定期用「设置 → 导出备份」保存一份 JSON 到别处
+
+### 7. 数据不会跨设备同步
+
+纯本地设计，没有账号体系，换手机或重装需要手动导出 / 恢复备份。
+
+### 8. 安装包是调试签名
+
+仓库构建出的 APK 使用自动生成的调试签名，仅供自己安装使用。若要上架应用商店，需要另外配置正式签名。
+
+### 9. 首屏加载偏重
+
+ECharts 与 xlsx 打包在同一个 chunk 里，产物约 1.8 MB（gzip 后约 600 KB）。功能不受影响，但在低端手机上首次打开会稍慢。
+
+## 项目结构
+
+```
+src/
+  core/          # 纯逻辑引擎（无 React 依赖）
+                 #   csv-parser        账单解析
+                 #   classifier        关键词分类 + 反馈学习
+                 #   habit-learner     习惯学习（金额 + 时段 → 分类）
+                 #   transaction-reconcile  账单回填
+                 #   transaction-query 筛选 / 排序 / 汇总
+                 #   dashboard-engine  看板统计
+                 #   budget-engine     预算执行
+                 #   periodic-engine   周期性交易识别
+                 #   data-masker       数据脱敏
+  stores/        # Zustand 状态管理（交易 / 分类规则 / 预算）
+  components/    # 展示组件，按功能分组
+  pages/         # 顶层路由页面
+  types/         # 类型定义与常量
+  utils/         # 日期、格式化、ID 生成等工具
+  storage/       # 存储抽象层
+  hooks/         # 自动记账 Hook
+  plugins/       # Capacitor 原生插件封装
+android/         # Capacitor 安卓工程（含自动记账的原生 Java 实现）
+docs/            # 设计文档
+```
+
+## 文档
+
+- [自动分类方案设计稿](docs/plan-auto-categorize.md)：账单回填、待确认收件箱、习惯学习的完整设计（含匹配规则与风险对策）
+
+## 已知限制
+
+- 支付宝账单导入、支付宝通知解析未充分验证
+- 通知监听依赖系统授权与省电策略，不同 ROM 表现差异较大
+- 自动记账的原生链路目前只在部分机型上验证过
+- 全自动获取商户名需要无障碍服务读取账单详情页，涉及较高权限且易随微信改版失效，暂未实现

@@ -54,7 +54,7 @@ src/
   types/         # TypeScript 类型、接口和常量
   utils/         # 工具函数（日期、格式化、ID 生成）
   storage/       # 本地存储抽象层（localStorage / Preferences）
-  hooks/         # 自定义 hooks（当前为空）
+  hooks/         # 自定义 hooks（自动记账监听与入账）
   services/      # 预留的 API 服务层（当前为空）
 ```
 
@@ -72,7 +72,7 @@ src/
 | 路径 | 页面 | 说明 |
 |------|------|------|
 | `/` | Dashboard | 看板：KPI 卡片、趋势图、饼图、柱状图、周期交易 |
-| `/transactions` | Transactions | 明细：上传区 + 交易列表（前 50 条），可按分类筛选 |
+| `/transactions` | Transactions | 明细：上传区 + 筛选/排序 + 滚动分页 + 详情/删除，支持 `?category=` 与 `?pending=1` |
 | `/budget` | Budget | 预算：进度条概览 + 编辑器面板 |
 | `/settings` | Settings | 设置：上传、分类规则、数据统计、备份/恢复、清空数据 |
 
@@ -92,7 +92,7 @@ src/
 
 ### 分类系统
 
-- **内置规则**（[constants/rules.ts](src/constants/rules.ts)）：8 个类别的关键词→类别映射
+- **内置规则**（[constants/rules.ts](src/constants/rules.ts)）：9 个类别的关键词→类别映射（含转账）
 - **自定义规则**：用户可添加/编辑/删除关键词规则，优先级高于内置规则
 - **反馈学习**：用户在交易列表手动更改分类时会记录反馈，同类反馈累积后自动升级为规则
 - 10 个类别：餐饮美食、交通出行、购物消费、休闲娱乐、居住生活、医疗健康、教育学习、转账、其他、待确认
