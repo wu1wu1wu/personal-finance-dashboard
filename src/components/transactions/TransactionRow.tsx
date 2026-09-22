@@ -8,6 +8,7 @@
 import type { Transaction } from '@/types';
 import { CATEGORIES } from '@/types';
 import { TRANSFER_CATEGORY } from '@/core/transaction-query';
+import { usePerTransactionLimits } from '@/hooks/usePerTransactionLimits';
 import { formatCurrency, formatDateShort } from '@/utils/format';
 import { cn } from '@/utils/cn';
 import CategoryIcon from '@/components/ui/CategoryIcon';
@@ -21,6 +22,9 @@ export default function TransactionRow({ txn, onClick }: TransactionRowProps) {
   const cat = CATEGORIES.find((c) => c.name === txn.category) ?? CATEGORIES[CATEGORIES.length - 1];
   const isExpense = txn.amount > 0;
   const isTransfer = txn.category === TRANSFER_CATEGORY;
+  const limitOf = usePerTransactionLimits();
+  const limit = limitOf(txn.category, txn.transactionTime.substring(0, 7));
+  const overLimit = limit !== undefined && isExpense && !isTransfer && txn.amount > limit;
 
   return (
     <li>
@@ -43,6 +47,11 @@ export default function TransactionRow({ txn, onClick }: TransactionRowProps) {
           <span className="block truncate text-[11px] text-ink-subtle">
             {txn.category} · {formatDateShort(txn.transactionTime)}
           </span>
+          {overLimit && (
+            <span className="mt-0.5 block truncate text-[11px] text-alert">
+              超过单笔上限 {formatCurrency(limit)}
+            </span>
+          )}
         </span>
 
         <span

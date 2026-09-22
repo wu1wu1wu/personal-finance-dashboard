@@ -3,7 +3,9 @@
 // ============================================================
 
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
+  CalendarMinus,
   Database,
   Download,
   FolderOpen,
@@ -25,6 +27,7 @@ const CARD = 'rounded-2xl border border-line bg-surface p-4';
 const SECTION_TITLE = 'mb-3 flex items-center gap-1.5 text-sm font-semibold text-ink';
 
 export default function Settings() {
+  const navigate = useNavigate();
   const { transactions, clearAll: clearTransactions, loadFromStorage: loadTransactions } =
     useTransactionStore();
   const { customRules, loadFromStorage: loadRules } = useClassificationStore();
@@ -227,41 +230,62 @@ export default function Settings() {
           <TriangleAlert size={16} aria-hidden="true" />
           清除数据
         </h2>
-        <p className="mb-4 text-sm text-ink-muted">
-          清除本机保存的交易记录、分类规则和预算设置。此操作不可撤销。
-        </p>
 
-        {!showClearConfirm ? (
+        {/* 按月份清理：日常主要用这个 */}
+        <div className="rounded-xl bg-canvas p-3">
+          <p className="text-sm font-medium text-ink">按月份清理</p>
+          <p className="mt-1 text-xs text-ink-muted">
+            选择要删除的月份，只清掉那几个月的数据
+          </p>
           <button
             type="button"
-            onClick={() => setShowClearConfirm(true)}
-            className="rounded-lg border border-expense-soft px-4 py-2 text-sm text-expense transition-colors hover:bg-expense-soft"
+            onClick={() => navigate('/cleanup')}
+            className="mt-3 flex items-center gap-1.5 rounded-lg bg-surface px-4 py-2 text-sm font-medium text-ink transition-colors hover:bg-brand-soft hover:text-brand"
           >
-            清除所有数据
+            <CalendarMinus size={15} aria-hidden="true" />
+            选择月份清理
           </button>
-        ) : (
-          <div className="rounded-lg bg-expense-soft p-4">
-            <p className="mb-3 text-sm font-medium text-expense">
-              确定要清除所有数据吗？此操作不可撤销。
-            </p>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={handleClearAll}
-                className="rounded-lg bg-expense px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-expense/90"
-              >
-                确认清除
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowClearConfirm(false)}
-                className="rounded-lg border border-line bg-surface px-4 py-2 text-sm text-ink transition-colors hover:bg-canvas"
-              >
-                取消
-              </button>
+        </div>
+
+        {/* 全部清除：低频且不可撤销，单独放在下面 */}
+        <div className="mt-3 rounded-xl border border-expense-soft p-3">
+          <p className="text-sm font-medium text-expense">清除所有数据</p>
+          <p className="mt-1 text-xs text-ink-muted">
+            清掉全部交易记录、分类规则和预算设置，不影响其他 App。此操作不可撤销。
+          </p>
+
+          {!showClearConfirm ? (
+            <button
+              type="button"
+              onClick={() => setShowClearConfirm(true)}
+              className="mt-3 rounded-lg border border-expense-soft px-4 py-2 text-sm text-expense transition-colors hover:bg-expense-soft"
+            >
+              清除所有数据
+            </button>
+          ) : (
+            <div className="mt-3 rounded-lg bg-expense-soft p-3">
+              <p className="mb-2 text-sm font-medium text-expense">
+                确定要清除所有数据吗？此操作不可撤销。
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleClearAll}
+                  className="rounded-lg bg-expense px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-expense/90"
+                >
+                  确认清除
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowClearConfirm(false)}
+                  className="rounded-lg border border-line bg-surface px-4 py-2 text-sm text-ink transition-colors hover:bg-canvas"
+                >
+                  取消
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </section>
 
       {/* 关于 */}

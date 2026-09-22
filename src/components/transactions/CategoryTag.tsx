@@ -1,8 +1,12 @@
 // ============================================================
-// CategoryTag - 分类标签（点击可修改分类）
+// CategoryTag - 分类标签，点击可改分类
+//
+// 用 Radix DropdownMenu 而不是自己写绝对定位的浮层：
+// 菜单渲染到 body（portal），不会被后面的列表行盖住；
+// 自带碰撞检测，靠近屏幕底部时自动向上弹，并按可用高度滚动。
 // ============================================================
 
-import { useState, useRef, useEffect } from 'react';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { Check } from 'lucide-react';
 import { CATEGORIES } from '@/types';
 import { useTransactionStore } from '@/stores/transaction-store';
@@ -33,38 +37,38 @@ export default function CategoryTag({
   source = 'auto',
   editable = true,
 }: CategoryTagProps) {
-  const [open, setOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
   const updateCategory = useTransactionStore((s) => s.updateCategory);
   const recordFeedback = useClassificationStore((s) => s.recordFeedback);
 
   const catInfo = CATEGORIES.find((c) => c.name === category) ?? CATEGORIES[CATEGORIES.length - 1];
 
-  // 点击外部关闭下拉
-  useEffect(() => {
-    if (!open) return;
-    const handleClick = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', handleClick);
-    document.addEventListener('keydown', handleKey);
-    return () => {
-      document.removeEventListener('mousedown', handleClick);
-      document.removeEventListener('keydown', handleKey);
-    };
-  }, [open]);
+  const tagClass =
+    'inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium';
+  const tagStyle = { backgroundColor: `${catInfo.color}18`, color: catInfo.color };
+
+  const tagContent = (
+    <>
+      <CategoryIcon category={catInfo.name} size={12} />
+      <span>{catInfo.name}</span>
+      {source === 'guessed' && (
+        <span className="ml-0.5 text-[10px] opacity-70" title="按历史习惯推测">
+          推测
+        </span>
+      )}
+    </>
+  );
+
+  // 不可编辑时直接渲染静态标签，不挂菜单
+  if (!editable) {
+    return (
+      <span className={cn(tagClass, 'cursor-default')} style={tagStyle}>
+        {tagContent}
+      </span>
+    );
+  }
 
   const handleSelect = (newCategory: string) => {
-    if (newCategory === category) {
-      setOpen(false);
-      return;
-    }
+    if (newCategory === category) return;
 
     updateCategory(transactionId, newCategory);
 
@@ -74,54 +78,50 @@ export default function CategoryTag({
     if (words.length > 0) {
       recordFeedback(words[0], newCategory);
     }
-
-    setOpen(false);
   };
 
   return (
-    <div className="relative inline-block shrink-0" ref={dropdownRef}>
-      <button
-        type="button"
-        onClick={() => editable && setOpen(!open)}
-        aria-expanded={editable ? open : undefined}
-        disabled={!editable}
-        className={cn(
-          'inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium',
-          editable ? 'cursor-pointer hover:opacity-80' : 'cursor-default',
-        )}
-        style={{
-          backgroundColor: `${catInfo.color}18`,
-          color: catInfo.color,
-        }}
-      >
-        <CategoryIcon category={catInfo.name} size={12} />
-        <span>{catInfo.name}</span>
-        {source === 'guessed' && (
-          <span className="ml-0.5 text-[10px] opacity-70" title="按历史习惯推测">
-            推测
-          </span>
-        )}
-      </button>
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild>
+        <button type="button" className={cn(tagClass, 'cursor-pointer hover:opacity-80')} style={tagStyle}>
+          {tagContent}
+        </button>
+      </DropdownMenu.Trigger>
 
-      {open && (
-        <div className="absolute left-0 top-full z-20 mt-1 max-h-60 w-40 overflow-y-auto rounded-lg border border-line bg-surface py-1 shadow-lg">
-          {CATEGORIES.filter((c) => c.name !== '待确认').map((cat) => (
-            <button
-              key={cat.name}
-              type="button"
-              onClick={() => handleSelect(cat.name)}
-              className={cn(
-                'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-canvas',
-                cat.name === category ? 'bg-brand-soft text-brand' : 'text-ink',
-              )}
-            >
-              <CategoryIcon category={cat.name} size={14} />
-              <span className="flex-1">{cat.name}</span>
-              {cat.name === category && <Check size={13} aria-hidden="true" />}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          align="start"
+          side="bottom"
+          sideOffset={4}
+          collisionPadding={12}
+          className={cn(
+            'pfd-fade-in z-50 min-w-[9rem] overflow-y-auto rounded-lg border border-line bg-surface py-1 shadow-lg',
+            // Radix 会把可用的垂直空间写进这个变量，避免菜单超出屏幕
+            'max-h-[var(--radix-dropdown-menu-content-available-height)]',
+          )}
+          style={{ overscrollBehavior: 'contain' }}
+        >
+          <DropdownMenu.RadioGroup value={category} onValueChange={handleSelect}>
+            {CATEGORIES.filter((c) => c.name !== '待确认').map((cat) => (
+              <DropdownMenu.RadioItem
+                key={cat.name}
+                value={cat.name}
+                className={cn(
+                  'flex cursor-pointer items-center gap-2 px-3 py-2 text-sm outline-none',
+                  'data-[highlighted]:bg-canvas',
+                  cat.name === category ? 'text-brand' : 'text-ink',
+                )}
+              >
+                <CategoryIcon category={cat.name} size={14} />
+                <span className="flex-1">{cat.name}</span>
+                <DropdownMenu.ItemIndicator>
+                  <Check size={13} aria-hidden="true" />
+                </DropdownMenu.ItemIndicator>
+              </DropdownMenu.RadioItem>
+            ))}
+          </DropdownMenu.RadioGroup>
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
   );
 }

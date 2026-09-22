@@ -1,139 +1,146 @@
 // ============================================================
-// TransactionCard - 封面卡片
+// TransactionCard - 主题卡片
 //
-// 只在「封面」视图使用，且只渲染真正有封面图的记录，
-// 避免出现一整屏没有内容的灰色占位块。
+// 给账单设了主题或配图后，会以卡片形式陈列出来。
+// 布局按「金额 / 主题 / 类型 / 时间」四块，点进去跳到明细里对应那笔。
 // ============================================================
 
-import { useRef, useState } from 'react';
-import { ImagePlus, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import type { Transaction } from '@/types';
 import { CATEGORIES } from '@/types';
-import { useTransactionStore } from '@/stores/transaction-store';
-import { formatCurrency, formatDateShort } from '@/utils/format';
-import { compressImage } from '@/utils/image';
+import { TRANSFER_CATEGORY } from '@/core/transaction-query';
+import { formatAmount, formatDateShort } from '@/utils/format';
 import { cn } from '@/utils/cn';
+import CategoryIcon from '@/components/ui/CategoryIcon';
 
 interface TransactionCardProps {
   txn: Transaction;
+  /** 点击卡片：跳到明细页打开这笔 */
   onClick?: () => void;
+  /** 删除这张卡片的主题（保留交易本身） */
+  onClearTheme?: () => void;
 }
 
-export default function TransactionCard({ txn, onClick }: TransactionCardProps) {
-  const setCoverImage = useTransactionStore((s) => s.setCoverImage);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
-
+export default function TransactionCard({ txn, onClick, onClearTheme }: TransactionCardProps) {
   const cat = CATEGORIES.find((c) => c.name === txn.category) ?? CATEGORIES[CATEGORIES.length - 1];
   const isExpense = txn.amount > 0;
-  const isTransfer = !isExpense && txn.transactionType === '其他';
+  const isTransfer = txn.category === TRANSFER_CATEGORY;
+  const hasImage = Boolean(txn.coverImage);
 
-  const openPicker = () => fileInputRef.current?.click();
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    try {
-      const dataUrl = await compressImage(file);
-      setCoverImage(txn.id, dataUrl);
-    } catch (err) {
-      console.error('封面上传失败:', err);
-    } finally {
-      setUploading(false);
-      e.target.value = '';
-    }
-  };
-
-  const handleRemoveCover = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setCoverImage(txn.id, '');
-  };
+  const amountColor = isTransfer ? 'text-ink-muted' : isExpense ? 'text-expense' : 'text-income';
 
   return (
-    <div className="group relative overflow-hidden rounded-xl border border-line bg-surface transition-shadow hover:shadow-md">
+    <li className="relative">
       <button
         type="button"
         onClick={onClick}
-        className="block w-full text-left"
-        aria-label={`${txn.counterparty || txn.description || '交易'}，${formatCurrency(Math.abs(txn.amount))}`}
+        aria-label={`查看 ${txn.theme || txn.counterparty || '这笔交易'} 的详情`}
+        className={cn(
+          'relative block w-full overflow-hidden rounded-2xl border text-left transition-shadow hover:shadow-md',
+          hasImage ? 'border-transparent' : 'border-line bg-surface',
+        )}
       >
-        {/* 封面图 */}
-        <div className="relative aspect-[4/3] overflow-hidden bg-canvas">
-          {txn.coverImage ? (
+        {/* 可选配图作为卡片背景 */}
+        {hasImage && (
+          <>
             <img
               src={txn.coverImage}
               alt=""
-              width={400}
-              height={300}
+              width={800}
+              height={450}
               loading="lazy"
-              className="h-full w-full object-cover"
+              className="absolute inset-0 h-full w-full object-cover"
             />
-          ) : (
-            <div
-              className="flex h-full w-full items-center justify-center"
-              style={{ backgroundColor: `${cat.color}14` }}
-            >
-              <ImagePlus size={22} className="text-ink-subtle" aria-hidden="true" />
-            </div>
-          )}
-        </div>
+            <span
+              className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/45 to-black/25"
+              aria-hidden="true"
+            />
+          </>
+        )}
 
-        {/* 信息区 */}
-        <div className="p-2.5">
-          <p className="truncate text-sm font-medium text-ink">
-            {txn.counterparty || '未知交易'}
-          </p>
-          <p className="mt-0.5 truncate text-[11px] text-ink-subtle">
-            {txn.category} · {formatDateShort(txn.transactionTime)}
-          </p>
-          <p
+        <div className="relative p-4">
+          {/* 金额 + 主题 */}
+          <div className="flex items-center gap-3">
+            <span
+              className={cn(
+                'flex h-12 w-12 shrink-0 items-center justify-center rounded-full',
+                hasImage ? 'bg-white/20 text-white' : '',
+              )}
+              style={
+                hasImage
+                  ? undefined
+                  : { backgroundColor: `${cat.color}18`, color: cat.color }
+              }
+            >
+              <CategoryIcon category={txn.category} size={19} />
+            </span>
+
+            <span className="min-w-0 flex-1">
+              <span
+                className={cn(
+                  'tnum block whitespace-nowrap text-lg font-semibold',
+                  hasImage ? 'text-white' : amountColor,
+                )}
+              >
+                {isTransfer ? '' : isExpense ? '-' : '+'}
+                {formatAmount(txn.amount)}
+                <span className="ml-0.5 text-xs font-normal">元</span>
+              </span>
+              <span
+                className={cn(
+                  'mt-0.5 block truncate text-sm',
+                  hasImage ? 'text-white/90' : 'text-ink',
+                )}
+              >
+                {txn.counterparty || txn.description || '未知交易'}
+              </span>
+            </span>
+          </div>
+
+          {/* 主题 */}
+          {txn.theme && (
+            <p
+              className={cn(
+                'mt-3 truncate text-base font-medium',
+                hasImage ? 'text-white' : 'text-ink',
+              )}
+            >
+              {txn.theme}
+            </p>
+          )}
+
+          {/* 类型 + 时间 */}
+          <div
             className={cn(
-              'tnum mt-1 whitespace-nowrap text-sm font-semibold',
-              isExpense ? 'text-expense' : isTransfer ? 'text-ink-muted' : 'text-income',
+              'mt-2.5 flex items-center justify-between gap-3 text-xs',
+              hasImage ? 'text-white/80' : 'text-ink-subtle',
             )}
           >
-            {isExpense ? '-' : '+'}
-            {formatCurrency(Math.abs(txn.amount))}
-          </p>
+            <span className="inline-flex items-center gap-1 truncate">
+              <CategoryIcon category={txn.category} size={12} />
+              {txn.category}
+            </span>
+            <span className="shrink-0 tnum">{formatDateShort(txn.transactionTime)}</span>
+          </div>
         </div>
       </button>
 
-      {/* 更换封面：悬停时才出现在桌面端，移动端靠删除按钮旁边的入口 */}
-      <button
-        type="button"
-        onClick={openPicker}
-        aria-label={txn.coverImage ? '更换封面' : '添加封面'}
-        className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/45 text-white opacity-0 transition-opacity hover:bg-black/65 focus-visible:opacity-100 group-hover:opacity-100"
-      >
-        <ImagePlus size={14} aria-hidden="true" />
-      </button>
-
-      {/* 删除封面：始终可见，移动端没有 hover */}
-      {txn.coverImage && (
+      {/* 移除主题：放在外层，避免按钮嵌套 */}
+      {onClearTheme && (txn.theme || hasImage) && (
         <button
           type="button"
-          onClick={handleRemoveCover}
-          aria-label="删除封面"
-          className="absolute right-1.5 top-10 flex h-7 w-7 items-center justify-center rounded-full bg-black/45 text-white transition-colors hover:bg-expense"
+          onClick={onClearTheme}
+          aria-label="移除主题"
+          className={cn(
+            'absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full transition-colors',
+            hasImage
+              ? 'bg-black/45 text-white hover:bg-expense'
+              : 'bg-canvas text-ink-subtle hover:bg-expense-soft hover:text-expense',
+          )}
         >
-          <X size={14} aria-hidden="true" />
+          <X size={13} aria-hidden="true" />
         </button>
       )}
-
-      {uploading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-surface/80 text-xs text-ink-muted">
-          上传中…
-        </div>
-      )}
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        onChange={handleFileChange}
-        className="hidden"
-      />
-    </div>
+    </li>
   );
 }

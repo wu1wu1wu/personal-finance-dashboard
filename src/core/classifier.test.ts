@@ -24,6 +24,7 @@ function makeTxn(overrides: Partial<Transaction> = {}): Transaction {
     tags: [],
     createdAt: '',
     coverImage: '',
+    theme: '',
     origin: 'import',
     ...overrides,
   }
@@ -129,5 +130,30 @@ describe('isValidCategory', () => {
     expect(isValidCategory('餐饮美食')).toBe(true)
     expect(isValidCategory('转账')).toBe(true)
     expect(isValidCategory('不存在的分类')).toBe(false)
+  })
+})
+
+// 这些样本来自真实微信账单，早期词表覆盖不到，全部落进了「待确认」
+describe('真实账单商户名', () => {
+  it('丰巢快递柜的「快件畅存费」→ 购物消费', () => {
+    expect(
+      classifyTransaction(makeTxn({ counterparty: '丰巢', description: '快件畅存费' })),
+    ).toBe('购物消费')
+  })
+
+  it('共享单车「广州骑安」的「先乘车后付费」→ 交通出行', () => {
+    expect(
+      classifyTransaction(makeTxn({ counterparty: '广州骑安', description: '先乘车后付费' })),
+    ).toBe('交通出行')
+  })
+
+  it('点心店 → 餐饮美食', () => {
+    expect(
+      classifyTransaction(makeTxn({ counterparty: '武汉市尚酥坊点心店' })),
+    ).toBe('餐饮美食')
+  })
+
+  it('补充词优先级低于通用规则：美团仍走原规则', () => {
+    expect(classifyTransaction(makeTxn({ counterparty: '美团外卖' }))).toBe('餐饮美食')
   })
 })

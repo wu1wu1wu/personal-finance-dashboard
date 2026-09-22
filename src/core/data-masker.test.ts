@@ -63,6 +63,7 @@ describe('maskTransaction', () => {
       tags: [],
       createdAt: '',
       coverImage: '',
+      theme: '',
       origin: 'import',
     }
     const masked = maskTransaction(txn)

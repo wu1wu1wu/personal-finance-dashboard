@@ -59,6 +59,7 @@ export default function AddTransactionModal({ onClose }: AddTransactionModalProp
       tags: [],
       createdAt: new Date().toISOString(),
       coverImage: '',
+      theme: '',
     };
 
     addTransaction(txn);

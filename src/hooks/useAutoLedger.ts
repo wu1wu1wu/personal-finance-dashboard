@@ -65,6 +65,7 @@ function processCapture(data: CapturedTransaction) {
     tags: [],
     createdAt: new Date().toISOString(),
     coverImage: '',
+    theme: '',
   };
 
   const customRules = useClassificationStore.getState().customRules;

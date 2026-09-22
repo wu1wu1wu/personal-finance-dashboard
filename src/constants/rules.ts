@@ -88,4 +88,57 @@ export const BUILTIN_RULES: ClassificationRule[] = [
     isCustom: false,
     hitCount: 0,
   },
+
+  // ===== 真实账单补充词表 =====
+  // 微信账单里的商户名常常只有店招（如「武汉市尚酥坊点心店」），
+  // 早期词表覆盖不到，这里按业态补一批高频词。
+  // 优先级设为 9，低于上面的通用规则，避免抢走本该归类的交易。
+  {
+    id: 'rule-dining-2',
+    keywords: ['点心', '糕点', '面包', '烘焙', '甜品', '早餐', '早点', '小吃', '食府', '菜馆', '饭庄', '卤味', '烤肉', '火锅', '川菜', '湘菜', '粤菜', '面馆', '粉店', '汤包', '包子', '煎饼', '烧烤', '零食', '水果', '生鲜', '食品'],
+    category: '餐饮美食',
+    priority: 9,
+    isCustom: false,
+    hitCount: 0,
+  },
+  {
+    id: 'rule-transport-2',
+    keywords: ['骑安', '乘车', '拼车', '顺风车', '停车', '高速', '加油', '充电桩', '共享单车', '公交', '轻轨', '高铁', '火车'],
+    category: '交通出行',
+    priority: 9,
+    isCustom: false,
+    hitCount: 0,
+  },
+  {
+    id: 'rule-shopping-2',
+    keywords: ['丰巢', '快件', '畅存', '驿站', '菜鸟', '代收', '寄存', '超市', '便利店', '百货', '商场', '专卖店'],
+    category: '购物消费',
+    priority: 9,
+    isCustom: false,
+    hitCount: 0,
+  },
+  {
+    id: 'rule-living-2',
+    keywords: ['物业', '水电', '燃气', '宽带', '话费', '房租', '家政', '保洁', '维修'],
+    category: '居住生活',
+    priority: 9,
+    isCustom: false,
+    hitCount: 0,
+  },
+  {
+    id: 'rule-health-2',
+    keywords: ['门诊', '挂号', '体检', '诊所', '口腔', '牙科', '眼科', '验光'],
+    category: '医疗健康',
+    priority: 9,
+    isCustom: false,
+    hitCount: 0,
+  },
+  {
+    id: 'rule-entertainment-2',
+    keywords: ['健身', '游泳', '球馆', '桌游', '密室', '剧本杀', '展览', '演出', '话剧', '音乐会', '网吧'],
+    category: '休闲娱乐',
+    priority: 9,
+    isCustom: false,
+    hitCount: 0,
+  },
 ];

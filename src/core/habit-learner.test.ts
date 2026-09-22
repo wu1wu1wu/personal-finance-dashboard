@@ -26,6 +26,7 @@ function imported(category: string, amount: number, time: string, id: string): T
     tags: [],
     createdAt: '',
     coverImage: '',
+    theme: '',
   }
 }
 

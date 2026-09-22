@@ -1,15 +1,26 @@
 // ============================================================
-// 明细页 - 上传 + 筛选/排序 + 滚动分页 + 详情/删除
+// 明细页 - 月份筛选 + 收支/排序/搜索 + 滚动分页 + 详情/删除
+//        待确认收件箱支持多选批量归类
 // ============================================================
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { ReceiptText, SearchX, Search, Trash, X } from 'lucide-react';
-import UploadZone from '@/components/transactions/UploadZone';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import {
+  Check,
+  ListChecks,
+  ReceiptText,
+  Search,
+  SearchX,
+  Trash,
+  TriangleAlert,
+  X,
+} from 'lucide-react';
 import CategoryTag from '@/components/transactions/CategoryTag';
 import TransactionDetailModal from '@/components/transactions/TransactionDetailModal';
 import CategoryIcon from '@/components/ui/CategoryIcon';
 import { useTransactionStore } from '@/stores/transaction-store';
+import { usePerTransactionLimits } from '@/hooks/usePerTransactionLimits';
 import { formatCurrency, formatDateShort } from '@/utils/format';
 import { cn } from '@/utils/cn';
 import { CATEGORIES } from '@/types';
@@ -38,13 +49,21 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
 ];
 
 export default function Transactions() {
-  const { transactions, loaded, loadFromStorage, deleteTransaction } = useTransactionStore();
+  const {
+    transactions,
+    loaded,
+    loadFromStorage,
+    deleteTransaction,
+    updateCategoryBatch,
+  } = useTransactionStore();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // 分类筛选同时支持看板图表钻取
   const categoryFilter = searchParams.get('category') ?? '';
   // 待确认收件箱：从看板 ?pending=1 进入
   const pendingOnly = searchParams.get('pending') === '1';
+  // 深链：从主题卡片 ?id=xxx 直接打开某笔详情
+  const deepLinkId = searchParams.get('id');
   const activeCategory = pendingOnly ? '待确认' : categoryFilter;
 
   const [direction, setDirection] = useState<DirectionFilter>('all');
@@ -55,6 +74,12 @@ export default function Transactions() {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+
+  // 批量归类
+  const [batchMode, setBatchMode] = useState(false);
+  const [batchIds, setBatchIds] = useState<string[]>([]);
+
+  const limitOf = usePerTransactionLimits();
 
   useEffect(() => {
     loadFromStorage();
@@ -79,9 +104,11 @@ export default function Transactions() {
     [filteredTransactions],
   );
 
-  // 条件变化时回到第一批，避免停在列表中间
+  // 条件变化时回到第一批，并退出批量模式
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
+    setBatchMode(false);
+    setBatchIds([]);
   }, [activeCategory, month, direction, keyword, sort]);
 
   const visibleTransactions = useMemo(
@@ -109,10 +136,19 @@ export default function Transactions() {
   }, [hasMore, filteredTransactions.length]);
 
   // 选中的交易直接读 store，删除后弹窗自动同步
-  const selectedTxn = useMemo(
-    () => (selectedId ? transactions.find((t) => t.id === selectedId) ?? null : null),
-    [transactions, selectedId],
-  );
+  const selectedTxn = useMemo(() => {
+    const id = selectedId ?? deepLinkId;
+    return id ? transactions.find((t) => t.id === id) ?? null : null;
+  }, [transactions, selectedId, deepLinkId]);
+
+  const closeDetail = () => {
+    setSelectedId(null);
+    if (deepLinkId) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('id');
+      setSearchParams(next, { replace: true });
+    }
+  };
 
   const clearFilter = () => setSearchParams({});
 
@@ -128,21 +164,86 @@ export default function Transactions() {
     clearFilter();
   };
 
+  const toggleBatchId = (id: string) => {
+    setBatchIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const exitBatch = () => {
+    setBatchMode(false);
+    setBatchIds([]);
+  };
+
+  const applyBatchCategory = (category: string) => {
+    updateCategoryBatch(batchIds, category);
+    exitBatch();
+  };
+
+  const monthChips = [
+    { value: '', label: '全部' },
+    ...months.map((m) => ({ value: m, label: `${Number(m.split('-')[1])}月` })),
+  ];
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-ink">交易明细</h1>
-        {loaded && filteredTransactions.length > 0 && (
-          <p className="text-xs text-ink-subtle tnum">共 {summary.count} 笔</p>
-        )}
+        <div className="flex items-center gap-2">
+          {loaded && filteredTransactions.length > 0 && (
+            <p className="text-xs text-ink-subtle tnum">共 {summary.count} 笔</p>
+          )}
+          {pendingOnly && filteredTransactions.length > 0 && (
+            <button
+              type="button"
+              onClick={() => (batchMode ? exitBatch() : setBatchMode(true))}
+              className={cn(
+                'flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors',
+                batchMode
+                  ? 'bg-canvas text-ink-muted'
+                  : 'bg-brand text-white hover:bg-brand/90',
+              )}
+            >
+              {batchMode ? <X size={13} aria-hidden="true" /> : <ListChecks size={13} aria-hidden="true" />}
+              {batchMode ? '取消' : '批量归类'}
+            </button>
+          )}
+        </div>
       </div>
 
-      <UploadZone />
+      {/* 月份筛选：左上角，按月份倒序 */}
+      {monthChips.length > 1 && (
+        <div
+          role="group"
+          aria-label="选择月份"
+          className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          <div className="flex w-max gap-1.5">
+            {monthChips.map((chip) => {
+              const active = month === chip.value;
+              return (
+                <button
+                  key={chip.value || 'all'}
+                  type="button"
+                  onClick={() => setMonth(chip.value)}
+                  aria-pressed={active}
+                  aria-label={chip.value ? `${chip.value.replace('-', '年')}月` : '全部月份'}
+                  className={cn(
+                    'tnum shrink-0 rounded-lg px-3 py-1.5 text-sm transition-colors',
+                    active
+                      ? 'bg-brand font-medium text-white'
+                      : 'bg-surface text-ink-muted hover:text-ink',
+                  )}
+                >
+                  {chip.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
-      {/* 筛选与排序 */}
+      {/* 收支方向 + 排序 + 搜索 */}
       <div className="space-y-2 rounded-xl border border-line bg-surface p-3">
         <div className="flex flex-wrap items-center gap-2">
-          {/* 收支方向 */}
           <div role="group" aria-label="收支方向" className="flex rounded-lg bg-canvas p-0.5">
             {DIRECTION_OPTIONS.map((opt) => (
               <button
@@ -161,23 +262,6 @@ export default function Transactions() {
               </button>
             ))}
           </div>
-
-          <label className="sr-only" htmlFor="txn-month">
-            月份
-          </label>
-          <select
-            id="txn-month"
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-            className="rounded-lg border border-line bg-surface px-2 py-1.5 text-xs text-ink"
-          >
-            <option value="">全部月份</option>
-            {months.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
 
           <label className="sr-only" htmlFor="txn-sort">
             排序方式
@@ -253,7 +337,7 @@ export default function Transactions() {
               <ReceiptText size={28} className="mx-auto text-ink-subtle" aria-hidden="true" />
               <p className="mt-3 text-sm font-medium text-ink">还没有交易记录</p>
               <p className="mt-1 text-sm text-ink-subtle">
-                上传微信支付账单 CSV 文件，或在看板点加号手动记一笔
+                到「设置」导入微信账单，或点底部加号手动记一笔
               </p>
             </>
           ) : (
@@ -274,54 +358,84 @@ export default function Transactions() {
 
       {/* 交易列表 */}
       {visibleTransactions.length > 0 && (
-        <ul className="space-y-2">
+        <ul className={cn('space-y-2', batchMode && 'pb-16')}>
           {visibleTransactions.map((txn) => {
             const cat = CATEGORIES.find((c) => c.name === txn.category) ?? CATEGORIES[CATEGORIES.length - 1];
             const isExpense = txn.amount > 0;
             const isTransfer = txn.category === TRANSFER_CATEGORY;
             const confirming = pendingDeleteId === txn.id;
+            const checked = batchIds.includes(txn.id);
             const displayName = txn.counterparty || txn.description || '未知交易';
+            // 单笔上限只对消费生效，转账不参与
+            const limit = limitOf(txn.category, txn.transactionTime.substring(0, 7));
+            const overLimit =
+              limit !== undefined && isExpense && !isTransfer && txn.amount > limit;
 
             return (
               <li
                 key={txn.id}
-                className="relative flex items-center gap-3 rounded-xl border border-line bg-surface p-3 transition-colors hover:bg-canvas focus-within:bg-canvas"
+                className={cn(
+                  'relative flex items-center gap-3 rounded-xl border bg-surface p-3 transition-colors',
+                  checked ? 'border-brand/40 bg-brand-soft' : 'border-line hover:bg-canvas',
+                )}
               >
-                {/* 整行可点：用覆盖式按钮，避免把 CategoryTag 嵌进 button 里 */}
+                {/* 批量模式下整行可点切换选中；否则打开详情 */}
                 <button
                   type="button"
-                  onClick={() => setSelectedId(txn.id)}
-                  aria-label={`查看 ${displayName} 的详情`}
+                  onClick={() => (batchMode ? toggleBatchId(txn.id) : setSelectedId(txn.id))}
+                  aria-label={batchMode ? `选择 ${displayName}` : `查看 ${displayName} 的详情`}
+                  aria-pressed={batchMode ? checked : undefined}
                   className="absolute inset-0 z-0 rounded-xl"
                 />
 
-                {/* 分类图标 */}
-                <span
-                  className="pointer-events-none relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
-                  style={{ backgroundColor: `${cat.color}18`, color: cat.color }}
-                >
-                  <CategoryIcon category={txn.category} size={18} />
-                </span>
+                {batchMode ? (
+                  <span
+                    className={cn(
+                      'pointer-events-none relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border-2 transition-colors',
+                      checked ? 'border-brand bg-brand text-white' : 'border-line bg-surface',
+                    )}
+                    aria-hidden="true"
+                  >
+                    {checked && <Check size={15} />}
+                  </span>
+                ) : (
+                  <span
+                    className="pointer-events-none relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+                    style={{ backgroundColor: `${cat.color}18`, color: cat.color }}
+                  >
+                    <CategoryIcon category={txn.category} size={18} />
+                  </span>
+                )}
 
                 {/* 对方 + 时间 + 分类标签 */}
                 <div className="pointer-events-none relative z-10 min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-ink">{displayName}</p>
+                  <p className="truncate text-sm font-medium text-ink">
+                    {txn.theme ? `${txn.theme} · ${displayName}` : displayName}
+                  </p>
                   <div className="mt-0.5 flex items-center gap-1.5">
-                    <div className="pointer-events-auto shrink-0">
-                      <CategoryTag
-                        transactionId={txn.id}
-                        category={txn.category}
-                        counterparty={txn.counterparty}
-                        description={txn.description}
-                        source={txn.categorySource}
-                        editable
-                      />
-                    </div>
+                    {!batchMode && (
+                      <div className="pointer-events-auto shrink-0">
+                        <CategoryTag
+                          transactionId={txn.id}
+                          category={txn.category}
+                          counterparty={txn.counterparty}
+                          description={txn.description}
+                          source={txn.categorySource}
+                          editable
+                        />
+                      </div>
+                    )}
                     <span className="min-w-0 truncate text-xs text-ink-subtle">
                       {formatDateShort(txn.transactionTime)}
                       {txn.description && ` · ${txn.description.substring(0, 20)}`}
                     </span>
                   </div>
+                  {overLimit && (
+                    <p className="mt-1 flex items-center gap-1 text-[11px] text-alert">
+                      <TriangleAlert size={11} aria-hidden="true" />
+                      超过单笔上限 {formatCurrency(limit)}
+                    </p>
+                  )}
                 </div>
 
                 {/* 金额 + 删除 */}
@@ -336,34 +450,35 @@ export default function Transactions() {
                     {formatCurrency(Math.abs(txn.amount))}
                   </span>
 
-                  {confirming ? (
-                    <div className="flex gap-1">
+                  {!batchMode &&
+                    (confirming ? (
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(txn.id)}
+                          className="rounded px-2 py-1 text-[11px] font-medium bg-expense text-white hover:bg-expense/90"
+                        >
+                          确认删除
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPendingDeleteId(null)}
+                          className="rounded px-2 py-1 text-[11px] bg-canvas text-ink-muted hover:text-ink"
+                        >
+                          取消
+                        </button>
+                      </div>
+                    ) : (
                       <button
                         type="button"
-                        onClick={() => handleDelete(txn.id)}
-                        className="rounded px-2 py-1 text-[11px] font-medium bg-expense text-white hover:bg-expense/90"
+                        onClick={() => setPendingDeleteId(txn.id)}
+                        aria-label={`删除 ${displayName}`}
+                        className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-ink-subtle transition-colors hover:bg-expense-soft hover:text-expense"
                       >
-                        确认删除
+                        <Trash size={12} aria-hidden="true" />
+                        删除
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setPendingDeleteId(null)}
-                        className="rounded px-2 py-1 text-[11px] bg-canvas text-ink-muted hover:text-ink"
-                      >
-                        取消
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setPendingDeleteId(txn.id)}
-                      aria-label={`删除 ${displayName}`}
-                      className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-ink-subtle transition-colors hover:bg-expense-soft hover:text-expense"
-                    >
-                      <Trash size={12} aria-hidden="true" />
-                      删除
-                    </button>
-                  )}
+                    ))}
                 </div>
               </li>
             );
@@ -389,9 +504,52 @@ export default function Transactions() {
         </ul>
       )}
 
-      {selectedTxn && (
-        <TransactionDetailModal txn={selectedTxn} onClose={() => setSelectedId(null)} />
+      {/* 批量归类操作条 */}
+      {batchMode && (
+        <div className="fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-40 px-4">
+          <div className="mx-auto flex max-w-md items-center gap-3 rounded-xl border border-line bg-surface p-3 shadow-lg">
+            <span className="min-w-0 flex-1 text-sm text-ink-muted">
+              已选 <span className="tnum font-semibold text-ink">{batchIds.length}</span> 笔
+            </span>
+
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger asChild>
+                <button
+                  type="button"
+                  disabled={batchIds.length === 0}
+                  className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  设为分类
+                  <span aria-hidden="true">▾</span>
+                </button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content
+                  align="end"
+                  side="top"
+                  sideOffset={6}
+                  collisionPadding={12}
+                  className="pfd-fade-in z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] min-w-[10rem] overflow-y-auto rounded-lg border border-line bg-surface py-1 shadow-lg"
+                  style={{ overscrollBehavior: 'contain' }}
+                >
+                  {CATEGORIES.filter((c) => c.name !== '待确认').map((cat) => (
+                    <DropdownMenu.Item
+                      key={cat.name}
+                      onSelect={() => applyBatchCategory(cat.name)}
+                      className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-ink outline-none data-[highlighted]:bg-canvas"
+                    >
+                      <CategoryIcon category={cat.name} size={14} />
+                      {cat.name}
+                    </DropdownMenu.Item>
+                  ))}
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
+          </div>
+        </div>
       )}
+
+      {selectedTxn && <TransactionDetailModal txn={selectedTxn} onClose={closeDetail} />}
     </div>
   );
 }

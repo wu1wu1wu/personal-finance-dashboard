@@ -11,6 +11,7 @@ import Dashboard from '@/pages/Dashboard';
 import Transactions from '@/pages/Transactions';
 import Budget from '@/pages/Budget';
 import Settings from '@/pages/Settings';
+import Cleanup from '@/pages/Cleanup';
 import AddTransactionModal from '@/components/transactions/AddTransactionModal';
 import { useAutoLedger } from '@/hooks/useAutoLedger';
 
@@ -75,6 +76,7 @@ export default function App() {
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/budget" element={<Budget />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/cleanup" element={<Cleanup />} />
           </Routes>
         </main>
 

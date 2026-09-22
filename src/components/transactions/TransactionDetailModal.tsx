@@ -2,14 +2,17 @@
 // TransactionDetailModal - 交易详情：改分类 / 查看完整信息 / 删除
 // ============================================================
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ImagePlus, TriangleAlert, X } from 'lucide-react';
 import type { Transaction } from '@/types';
 import { CATEGORIES } from '@/types';
 import { useTransactionStore } from '@/stores/transaction-store';
 import { useClassificationStore } from '@/stores/classification-store';
+import { usePerTransactionLimits } from '@/hooks/usePerTransactionLimits';
 import { TRANSFER_CATEGORY } from '@/core/transaction-query';
 import { formatCurrency } from '@/utils/format';
 import { cn } from '@/utils/cn';
+import { compressImage } from '@/utils/image';
 import Modal from '@/components/ui/Modal';
 import CategoryIcon from '@/components/ui/CategoryIcon';
 import CategoryTag from '@/components/transactions/CategoryTag';
@@ -22,9 +25,36 @@ interface TransactionDetailModalProps {
 export default function TransactionDetailModal({ txn, onClose }: TransactionDetailModalProps) {
   const deleteTransaction = useTransactionStore((s) => s.deleteTransaction);
   const updateCategory = useTransactionStore((s) => s.updateCategory);
+  const setTheme = useTransactionStore((s) => s.setTheme);
+  const setCoverImage = useTransactionStore((s) => s.setCoverImage);
   const transactions = useTransactionStore((s) => s.transactions);
   const recordFeedback = useClassificationStore((s) => s.recordFeedback);
   const [confirming, setConfirming] = useState(false);
+
+  const [themeInput, setThemeInput] = useState(txn.theme);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const limitOf = usePerTransactionLimits();
+
+  // 切换交易时同步主题输入框
+  useEffect(() => {
+    setThemeInput(txn.theme);
+  }, [txn.id, txn.theme]);
+
+  const handlePickImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const dataUrl = await compressImage(file);
+      setCoverImage(txn.id, dataUrl);
+    } catch (err) {
+      console.error('配图上传失败:', err);
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  };
 
   // 快速归类：优先给用户最常用的 6 个分类，没有历史就按默认顺序
   const quickCategories = useMemo(() => {
@@ -56,6 +86,8 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
 
   const isExpense = txn.amount > 0;
   const isTransfer = txn.category === TRANSFER_CATEGORY;
+  const limit = limitOf(txn.category, txn.transactionTime.substring(0, 7));
+  const overLimit = limit !== undefined && isExpense && !isTransfer && txn.amount > limit;
 
   const rows: { label: string; value: string }[] = [
     { label: '交易时间', value: txn.transactionTime || '—' },
@@ -129,14 +161,92 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
       }
     >
       <div className="space-y-4 pb-1">
-        {/* 封面图 */}
-        {txn.coverImage && (
-          <img
-            src={txn.coverImage}
-            alt="账单封面"
-            className="max-h-56 w-full rounded-lg object-cover"
-          />
+        {/* 单笔超限提示 */}
+        {overLimit && (
+          <p className="flex items-start gap-2 rounded-lg bg-alert-soft px-3 py-2.5 text-sm text-alert">
+            <TriangleAlert size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
+            <span>
+              这笔 {formatCurrency(txn.amount)} 超过了「{txn.category}」的单笔上限{' '}
+              {formatCurrency(limit)}，超出 {formatCurrency(txn.amount - limit)}。
+            </span>
+          </p>
         )}
+
+        {/* 主题 + 配图 */}
+        <div className="border-b border-line pb-3">
+          <label htmlFor="detail-theme" className="mb-1.5 block text-xs text-ink-subtle">
+            主题
+          </label>
+          <div className="flex gap-2">
+            <input
+              id="detail-theme"
+              name="theme"
+              type="text"
+              autoComplete="off"
+              value={themeInput}
+              onChange={(e) => setThemeInput(e.target.value)}
+              placeholder="给这笔账单写个主题，如：和朋友的晚餐"
+              className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-subtle focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+            />
+            <button
+              type="button"
+              onClick={() => setTheme(txn.id, themeInput.trim())}
+              disabled={themeInput.trim() === txn.theme}
+              className="shrink-0 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              保存
+            </button>
+          </div>
+          <p className="mt-1 text-[11px] text-ink-subtle">
+            设了主题的账单会出现在看板的「主题」视图里
+          </p>
+
+          {/* 配图 */}
+          <div className="mt-3 flex items-center gap-3">
+            {txn.coverImage ? (
+              <img
+                src={txn.coverImage}
+                alt="账单配图"
+                width={128}
+                height={128}
+                className="h-16 w-16 shrink-0 rounded-lg object-cover"
+              />
+            ) : (
+              <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-canvas text-ink-subtle">
+                <ImagePlus size={20} aria-hidden="true" />
+              </span>
+            )}
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="rounded-lg border border-line px-3 py-1.5 text-xs text-ink transition-colors hover:bg-canvas disabled:opacity-50"
+              >
+                {uploading ? '上传中…' : txn.coverImage ? '更换配图' : '添加配图'}
+              </button>
+              {txn.coverImage && (
+                <button
+                  type="button"
+                  onClick={() => setCoverImage(txn.id, '')}
+                  className="flex items-center gap-1 rounded-lg border border-line px-3 py-1.5 text-xs text-ink-muted transition-colors hover:bg-expense-soft hover:text-expense"
+                >
+                  <X size={12} aria-hidden="true" />
+                  移除
+                </button>
+              )}
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handlePickImage}
+              className="hidden"
+            />
+          </div>
+        </div>
 
         {/* 当前分类 */}
         <div className="flex items-center justify-between gap-3 border-b border-line pb-3">

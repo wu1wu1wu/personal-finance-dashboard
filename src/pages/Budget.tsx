@@ -6,10 +6,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { Check, SlidersHorizontal, TriangleAlert, Wallet } from 'lucide-react';
 import { useBudgetStore } from '@/stores/budget-store';
 import { useTransactionStore } from '@/stores/transaction-store';
-import { calcBudgetStatus, calcTotalBudgetStatus } from '@/core/budget-engine';
+import {
+  calcBudgetStatus,
+  calcTotalBudgetStatus,
+  findOverLimitTransactions,
+} from '@/core/budget-engine';
 import BudgetProgressBar from '@/components/budget/BudgetProgressBar';
 import BudgetEditor from '@/components/budget/BudgetEditor';
 import { getCurrentMonth, getRecentMonths } from '@/utils/date';
+import { formatCurrency, formatDateShort } from '@/utils/format';
 import { cn } from '@/utils/cn';
 import type { BudgetStatus } from '@/types';
 
@@ -37,6 +42,12 @@ export default function Budget() {
     if (!txnLoaded || !budgetLoaded) return null;
     return calcTotalBudgetStatus(transactions, totalBudgets, selectedMonth);
   }, [transactions, totalBudgets, selectedMonth, txnLoaded, budgetLoaded]);
+
+  // 超过「单笔消费上限」的交易
+  const overLimit = useMemo(() => {
+    if (!txnLoaded || !budgetLoaded) return [];
+    return findOverLimitTransactions(transactions, budgets, selectedMonth);
+  }, [transactions, budgets, selectedMonth, txnLoaded, budgetLoaded]);
 
   const warningCount = budgetStatuses.filter((s) => s.level === 'warning').length;
   const exceededCount = budgetStatuses.filter((s) => s.level === 'exceeded').length;
@@ -189,6 +200,45 @@ export default function Budget() {
                 为常用分类单独设定预算，可以更细地控制支出
               </p>
             </div>
+          )}
+
+          {/* 单笔超限 */}
+          {overLimit.length > 0 && (
+            <section>
+              <h2 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-ink">
+                <TriangleAlert size={15} className="text-alert" aria-hidden="true" />
+                单笔超限
+                <span className="text-xs font-normal text-ink-subtle tnum">
+                  {overLimit.length} 笔
+                </span>
+              </h2>
+              <ul className="space-y-2">
+                {overLimit.map(({ transaction, limit, over }) => (
+                  <li
+                    key={transaction.id}
+                    className="flex items-center gap-3 rounded-xl border border-line bg-surface p-3"
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-ink">
+                        {transaction.counterparty || transaction.description || '未知交易'}
+                      </span>
+                      <span className="mt-0.5 block truncate text-xs text-ink-subtle">
+                        {transaction.category} · {formatDateShort(transaction.transactionTime)} ·
+                        上限 {formatCurrency(limit)}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-right">
+                      <span className="tnum block whitespace-nowrap text-sm font-semibold text-alert">
+                        {formatCurrency(transaction.amount)}
+                      </span>
+                      <span className="tnum mt-0.5 block whitespace-nowrap text-[11px] text-alert">
+                        超出 {formatCurrency(over)}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
           )}
         </>
       )}

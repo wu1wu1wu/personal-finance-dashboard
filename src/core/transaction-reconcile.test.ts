@@ -19,6 +19,7 @@ function txn(partial: Partial<Transaction> & Pick<Transaction, 'id'>): Transacti
     tags: [],
     createdAt: '2026-09-10T04:00:00.000Z',
     coverImage: '',
+    theme: '',
     ...partial,
   }
 }

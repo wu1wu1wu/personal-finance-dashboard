@@ -31,6 +31,8 @@ interface TransactionStore {
   addTransaction: (txn: Transaction) => void;
   /** 更新单条交易的分类 */
   updateCategory: (id: string, category: string) => void;
+  /** 批量更新分类（待确认收件箱多选归类） */
+  updateCategoryBatch: (ids: string[], category: string) => void;
   /** 切换周期性标记 */
   togglePeriodic: (id: string) => void;
   /** 添加标签 */
@@ -39,6 +41,8 @@ interface TransactionStore {
   removeTag: (id: string, tag: string) => void;
   /** 删除单条交易 */
   deleteTransaction: (id: string) => void;
+  /** 按月份批量删除交易，返回删除的笔数 */
+  deleteByMonths: (months: string[]) => number;
   /** 清空所有交易 */
   clearAll: () => Promise<void>;
   /** 按筛选条件获取交易 */
@@ -49,6 +53,8 @@ interface TransactionStore {
   setImporting: (importing: boolean, message?: string | null) => void;
   /** 设置交易封面图 */
   setCoverImage: (id: string, coverImage: string) => void;
+  /** 设置交易主题（纯文字） */
+  setTheme: (id: string, theme: string) => void;
   /** 持久化到 localStorage */
   persist: () => Promise<void>;
   /** 自动标记周期性交易（数据加载与导入后调用） */
@@ -108,6 +114,14 @@ export const useTransactionStore = create<TransactionStore>((set, get) => ({
         }
       }
 
+      // 补齐老数据的 theme / coverImage，避免读取时是 undefined
+      if (typeof next.theme !== 'string') {
+        next = { ...next, theme: '' };
+      }
+      if (typeof next.coverImage !== 'string') {
+        next = { ...next, coverImage: '' };
+      }
+
       if (next !== t) changed++;
       return next;
     });
@@ -136,6 +150,30 @@ export const useTransactionStore = create<TransactionStore>((set, get) => ({
       transactions: [txn, ...state.transactions],
     }));
     get().persist();
+  },
+
+  updateCategoryBatch: (ids, category) => {
+    if (ids.length === 0) return;
+    const idSet = new Set(ids);
+    set((state) => ({
+      transactions: state.transactions.map((t) =>
+        idSet.has(t.id) ? { ...t, category, categorySource: 'manual' } : t,
+      ),
+    }));
+    get().persist();
+  },
+
+  deleteByMonths: (months) => {
+    if (months.length === 0) return 0;
+    const monthSet = new Set(months);
+    const before = get().transactions.length;
+    set((state) => ({
+      transactions: state.transactions.filter(
+        (t) => !monthSet.has(t.transactionTime.substring(0, 7)),
+      ),
+    }));
+    get().persist();
+    return before - get().transactions.length;
   },
 
   applyReconcile: (next) => {
@@ -229,6 +267,13 @@ export const useTransactionStore = create<TransactionStore>((set, get) => ({
       transactions: state.transactions.map((t) =>
         t.id === id ? { ...t, coverImage } : t,
       ),
+    }));
+    get().persist();
+  },
+
+  setTheme: (id, theme) => {
+    set((state) => ({
+      transactions: state.transactions.map((t) => (t.id === id ? { ...t, theme } : t)),
     }));
     get().persist();
   },

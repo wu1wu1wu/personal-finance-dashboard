@@ -36,6 +36,8 @@ export interface Transaction {
   createdAt: string;
   /** 自定义封面图（base64 data URL，空=无封面） */
   coverImage: string;
+  /** 用户自定义主题（纯文字，显示在封面卡片上） */
+  theme: string;
 }
 
 /** 分类规则 */
@@ -60,6 +62,8 @@ export interface Budget {
   category: string;
   /** 月度预算上限 */
   monthlyLimit: number;
+  /** 单笔消费上限（0 或未设置 = 不限制） */
+  maxPerTransaction?: number;
   /** 显示颜色 */
   color: string;
   /** 生效月份 "2026-07"（空字符串=所有月份通用） */

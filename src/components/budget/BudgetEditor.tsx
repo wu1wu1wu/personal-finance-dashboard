@@ -21,13 +21,16 @@ const INPUT_CLASS =
 export default function BudgetEditor({ month }: BudgetEditorProps) {
   const { budgets, getTotalBudget, setBudget, removeBudget, setTotalBudget, loadFromStorage } =
     useBudgetStore();
+  const setPerTransactionLimit = useBudgetStore((s) => s.setPerTransactionLimit);
 
   const [showAdd, setShowAdd] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [newLimit, setNewLimit] = useState('');
+  const [newMaxPerTxn, setNewMaxPerTxn] = useState('');
   const [totalInput, setTotalInput] = useState('');
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [editMaxPerTxn, setEditMaxPerTxn] = useState('');
 
   // 原来在 render 里直接调用 loadFromStorage()，改成 effect 避免渲染期副作用
   useEffect(() => {
@@ -44,26 +47,44 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
   );
 
   const handleAddBudget = () => {
-    const limit = Number.parseFloat(newLimit);
-    if (!selectedCategory || Number.isNaN(limit) || limit <= 0) return;
+    const limit = Number.parseFloat(newLimit) || 0;
+    const maxPerTxn = Number.parseFloat(newMaxPerTxn) || 0;
+    // 月度预算和单笔上限至少填一个
+    if (!selectedCategory || (limit <= 0 && maxPerTxn <= 0)) return;
     setBudget(selectedCategory, limit, month);
+    setPerTransactionLimit(selectedCategory, maxPerTxn, month);
     setSelectedCategory('');
     setNewLimit('');
+    setNewMaxPerTxn('');
     setShowAdd(false);
   };
 
-  const handleStartEdit = (category: string, currentLimit: number) => {
+  const handleStartEdit = (
+    category: string,
+    currentLimit: number,
+    currentMaxPerTxn?: number,
+  ) => {
     setEditingCategory(category);
-    setEditValue(String(currentLimit));
+    setEditValue(currentLimit > 0 ? String(currentLimit) : '');
+    setEditMaxPerTxn(currentMaxPerTxn && currentMaxPerTxn > 0 ? String(currentMaxPerTxn) : '');
   };
 
   const handleSaveEdit = () => {
     if (!editingCategory) return;
-    const limit = Number.parseFloat(editValue);
-    if (Number.isNaN(limit) || limit <= 0) return;
-    setBudget(editingCategory, limit, month);
+    const limit = Number.parseFloat(editValue) || 0;
+    const maxPerTxn = Number.parseFloat(editMaxPerTxn) || 0;
+
+    if (limit <= 0 && maxPerTxn <= 0) {
+      // 两项都清空 = 删除这条预算
+      removeBudget(editingCategory, month);
+    } else {
+      setBudget(editingCategory, limit, month);
+      setPerTransactionLimit(editingCategory, maxPerTxn, month);
+    }
+
     setEditingCategory(null);
     setEditValue('');
+    setEditMaxPerTxn('');
   };
 
   const handleSetTotal = () => {
@@ -195,9 +216,26 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
               autoComplete="off"
               value={newLimit}
               onChange={(e) => setNewLimit(e.target.value)}
-              placeholder={`${month} 的预算上限（元）`}
+              placeholder={`${month} 的月度预算（元）`}
               min="0"
               step="100"
+              className={INPUT_CLASS}
+            />
+
+            <label className="sr-only" htmlFor="budget-max-per-txn">
+              单笔消费上限
+            </label>
+            <input
+              id="budget-max-per-txn"
+              name="maxPerTransaction"
+              type="number"
+              inputMode="decimal"
+              autoComplete="off"
+              value={newMaxPerTxn}
+              onChange={(e) => setNewMaxPerTxn(e.target.value)}
+              placeholder="单笔消费上限（选填，超过会提醒）"
+              min="0"
+              step="50"
               className={INPUT_CLASS}
             />
 
@@ -205,7 +243,11 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
               <button
                 type="button"
                 onClick={handleAddBudget}
-                disabled={!selectedCategory || !newLimit || Number.parseFloat(newLimit) <= 0}
+                disabled={
+                  !selectedCategory ||
+                  ((Number.parseFloat(newLimit) || 0) <= 0 &&
+                    (Number.parseFloat(newMaxPerTxn) || 0) <= 0)
+                }
                 className="rounded-lg bg-brand px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 保存
@@ -216,6 +258,7 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
                   setShowAdd(false);
                   setSelectedCategory('');
                   setNewLimit('');
+                  setNewMaxPerTxn('');
                 }}
                 className="rounded-lg bg-surface px-4 py-1.5 text-sm text-ink-muted transition-colors hover:text-ink"
               >
@@ -250,9 +293,9 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
                   </span>
 
                   {isEditing ? (
-                    <div className="flex flex-1 gap-2">
+                    <div className="flex flex-1 flex-col gap-2 sm:flex-row">
                       <label className="sr-only" htmlFor={`edit-${budget.category}`}>
-                        {budget.category} 预算上限
+                        {budget.category} 月度预算
                       </label>
                       <input
                         id={`edit-${budget.category}`}
@@ -266,37 +309,76 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
                           if (e.key === 'Enter') handleSaveEdit();
                           if (e.key === 'Escape') setEditingCategory(null);
                         }}
+                        placeholder="月度预算"
                         min="0"
                         step="100"
                         className={cn(INPUT_CLASS, 'flex-1')}
                       />
-                      <button
-                        type="button"
-                        onClick={handleSaveEdit}
-                        aria-label="保存"
-                        className="rounded-lg bg-brand px-2.5 text-white transition-colors hover:bg-brand/90"
-                      >
-                        <Check size={14} aria-hidden="true" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditingCategory(null)}
-                        aria-label="取消"
-                        className="rounded-lg bg-canvas px-2.5 text-ink-muted transition-colors hover:text-ink"
-                      >
-                        <X size={14} aria-hidden="true" />
-                      </button>
+
+                      <label className="sr-only" htmlFor={`edit-max-${budget.category}`}>
+                        {budget.category} 单笔消费上限
+                      </label>
+                      <input
+                        id={`edit-max-${budget.category}`}
+                        name="maxPerTransaction"
+                        type="number"
+                        inputMode="decimal"
+                        autoComplete="off"
+                        value={editMaxPerTxn}
+                        onChange={(e) => setEditMaxPerTxn(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSaveEdit();
+                          if (e.key === 'Escape') setEditingCategory(null);
+                        }}
+                        placeholder="单笔上限（选填）"
+                        min="0"
+                        step="50"
+                        className={cn(INPUT_CLASS, 'flex-1')}
+                      />
+
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={handleSaveEdit}
+                          aria-label="保存"
+                          className="rounded-lg bg-brand px-2.5 py-2 text-white transition-colors hover:bg-brand/90"
+                        >
+                          <Check size={14} aria-hidden="true" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingCategory(null)}
+                          aria-label="取消"
+                          className="rounded-lg bg-canvas px-2.5 text-ink-muted transition-colors hover:text-ink"
+                        >
+                          <X size={14} aria-hidden="true" />
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <>
-                      <span className="tnum flex-1 text-sm font-medium text-ink">
-                        {formatCurrency(budget.monthlyLimit)}
-                        <span className="text-xs font-normal text-ink-subtle">/月</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="tnum block truncate text-sm font-medium text-ink">
+                          {budget.monthlyLimit > 0
+                            ? `${formatCurrency(budget.monthlyLimit)}/月`
+                            : '未设月度预算'}
+                        </span>
+                        <span className="tnum mt-0.5 block truncate text-[11px] text-ink-subtle">
+                          {budget.maxPerTransaction
+                            ? `单笔不超过 ${formatCurrency(budget.maxPerTransaction)}`
+                            : '未设单笔上限'}
+                        </span>
                       </span>
                       <div className="flex shrink-0 gap-1">
                         <button
                           type="button"
-                          onClick={() => handleStartEdit(budget.category, budget.monthlyLimit)}
+                          onClick={() =>
+                            handleStartEdit(
+                              budget.category,
+                              budget.monthlyLimit,
+                              budget.maxPerTransaction,
+                            )
+                          }
                           aria-label={`修改 ${budget.category} 预算`}
                           className="rounded-md p-1.5 text-ink-subtle transition-colors hover:bg-canvas hover:text-brand"
                         >

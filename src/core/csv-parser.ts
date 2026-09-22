@@ -10,6 +10,18 @@ import { normalizeDateTime } from '@/utils/date';
 import { parseAmount } from '@/utils/format';
 
 /**
+ * 微信账单里没有内容的字段经常导出成 "/" 或 "-" 这类占位符。
+ * 它们要当空值处理，否则会原样显示成商户名。
+ */
+const PLACEHOLDER_VALUES = new Set(['/', '\\', '-', '--', '—', '无', 'N/A', 'n/a', 'null']);
+
+/** 去掉占位符和首尾空格 */
+function cleanField(value: string | undefined | null): string {
+  const trimmed = (value ?? '').trim();
+  return PLACEHOLDER_VALUES.has(trimmed) ? '' : trimmed;
+}
+
+/**
  * 将 Excel 日期序列号转为标准日期时间字符串
  * Excel 日期序列号 = 1900-01-01 以来的天数（含Excel的1900年闰年bug）
  * 例如: 46203.89304398148 → "2026-06-30 21:26:00"
@@ -89,40 +101,23 @@ export interface ParseOptions {
  * 微信支付CSV默认GBK编码，部分新版可能UTF-8
  */
 async function decodeFile(file: File): Promise<string> {
-  // 先尝试UTF-8解码
   const buffer = await file.arrayBuffer();
-  const uint8 = new Uint8Array(buffer);
 
-  // 检测BOM：UTF-8文件以 EF BB BF 开头
-  const isUtf8Bom =
-    uint8.length >= 3 && uint8[0] === 0xef && uint8[1] === 0xbb && uint8[2] === 0xbf;
-
-  // 检测是否包含GBK特有字节（0x80-0xFE范围的高字节）
-  let hasGbkByte = false;
-  for (let i = 0; i < Math.min(uint8.length, 2000); i++) {
-    if (uint8[i] >= 0x80) {
-      hasGbkByte = true;
-      break;
-    }
-  }
-
-  if (!hasGbkByte || isUtf8Bom) {
-    // 纯ASCII或UTF-8 BOM，直接用TextDecoder UTF-8
-    return new TextDecoder('utf-8').decode(buffer);
-  }
-
-  // 尝试GBK解码
+  // UTF-8 是自校验编码：能严格解码成功就一定是 UTF-8。
+  // 之前靠「有高字节就按 GBK 解」判断，会把无 BOM 的 UTF-8 中文账单解成乱码，
+  // 表头匹配不到「交易时间」，整个文件就解析不出记录。
   try {
-    const text = new TextDecoder('gbk').decode(buffer);
-    // 简单验证：如果解码后包含中文字符，说明GBK解码成功
-    if (/[\u4e00-\u9fff]/.test(text)) {
-      return text;
-    }
+    return new TextDecoder('utf-8', { fatal: true }).decode(buffer);
   } catch {
-    // GBK解码失败，回退到UTF-8
+    // 不是合法 UTF-8，按微信默认的 GBK 处理
   }
 
-  // 最终回退
+  try {
+    return new TextDecoder('gbk').decode(buffer);
+  } catch {
+    // 两种都不行时用宽松 UTF-8，尽量把内容读出来
+  }
+
   return new TextDecoder('utf-8', { fatal: false }).decode(buffer);
 }
 
@@ -285,7 +280,7 @@ async function parseWechatXLSX(
 
         // 保留微信原始交易类型（转账/红包/扫码等），合并到描述中供分类器使用
         const wechatType = mapped.transactionType || '';
-        const rawDescription = mapped.description || mapped.remark || '';
+        const rawDescription = cleanField(mapped.description) || cleanField(mapped.remark);
         // 当原始微信类型是分类关键信息时，合并到描述中
         const informativeTypes = ['转账', '红包', '提现', '退款', '扫二维码付款', '群收款'];
         const description = informativeTypes.includes(wechatType) && !rawDescription.includes(wechatType)
@@ -309,7 +304,7 @@ async function parseWechatXLSX(
           id,
           transactionTime: normalizeDateTime(mapped.transactionTime),
           transactionType,
-          counterparty: mapped.counterparty || '',
+          counterparty: cleanField(mapped.counterparty),
           description,
           amount,
           paymentStatus: mapped.paymentStatus || '',
@@ -322,6 +317,7 @@ async function parseWechatXLSX(
           tags: [],
           createdAt: now,
           coverImage: '',
+          theme: '',
         });
       } catch (e) {
         errors.push(`行解析失败: ${e instanceof Error ? e.message : '未知错误'}`);
@@ -445,7 +441,7 @@ async function parseWechatCSVText(
 
       // 保留微信原始交易类型（转账/红包/扫码等），合并到描述中供分类器使用
       const wechatType = mapped.transactionType || '';
-      const rawDescription = mapped.description || mapped.remark || '';
+      const rawDescription = cleanField(mapped.description) || cleanField(mapped.remark);
       const informativeTypes = ['转账', '红包', '提现', '退款', '扫二维码付款', '群收款'];
       const description = informativeTypes.includes(wechatType) && !rawDescription.includes(wechatType)
         ? (rawDescription ? `${wechatType}: ${rawDescription}` : wechatType)
@@ -468,7 +464,7 @@ async function parseWechatCSVText(
           id,
           transactionTime: normalizeDateTime(mapped.transactionTime),
           transactionType,
-          counterparty: mapped.counterparty || '',
+          counterparty: cleanField(mapped.counterparty),
           description,
           amount,
           paymentStatus: mapped.paymentStatus || '',
@@ -481,6 +477,7 @@ async function parseWechatCSVText(
           tags: [],
           createdAt: now,
           coverImage: '',
+          theme: '',
         });
       } catch (e) {
         errors.push(`行解析失败: ${e instanceof Error ? e.message : '未知错误'}`);

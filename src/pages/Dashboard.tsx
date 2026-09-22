@@ -37,11 +37,12 @@ const RECENT_COUNT = 5;
 
 const VIEW_OPTIONS: { value: ViewMode; label: string; icon: typeof ChartPie }[] = [
   { value: 'overview', label: '概览', icon: ChartPie },
-  { value: 'album', label: '封面', icon: Images },
+  { value: 'album', label: '主题', icon: Images },
 ];
 
 export default function Dashboard() {
-  const { transactions, loaded, loadFromStorage, togglePeriodic } = useTransactionStore();
+  const { transactions, loaded, loadFromStorage, togglePeriodic, setTheme } =
+    useTransactionStore();
   const navigate = useNavigate();
 
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
@@ -100,7 +101,11 @@ export default function Dashboard() {
   );
 
   const recentTxns = monthTxns.slice(0, RECENT_COUNT);
-  const coveredTxns = useMemo(() => monthTxns.filter((t) => t.coverImage), [monthTxns]);
+  // 主题视图只陈列设过主题或配过图的账单
+  const themedTxns = useMemo(
+    () => monthTxns.filter((t) => t.theme || t.coverImage),
+    [monthTxns],
+  );
 
   const handleUnmarkPeriodic = (counterparty: string, amount: number) => {
     for (const txn of transactions) {
@@ -301,27 +306,26 @@ export default function Dashboard() {
         </>
       )}
 
-      {/* ====== 封面视图 ====== */}
+      {/* ====== 主题视图 ====== */}
       {!isLoading && !isEmpty && viewMode === 'album' && (
         <>
-          {coveredTxns.length > 0 ? (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-              {coveredTxns.map((txn) => (
+          {themedTxns.length > 0 ? (
+            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {themedTxns.map((txn) => (
                 <TransactionCard
                   key={txn.id}
                   txn={txn}
-                  onClick={() =>
-                    navigate(`/transactions?category=${encodeURIComponent(txn.category)}`)
-                  }
+                  onClick={() => navigate(`/transactions?id=${encodeURIComponent(txn.id)}`)}
+                  onClearTheme={() => setTheme(txn.id, '')}
                 />
               ))}
-            </div>
+            </ul>
           ) : (
-            <div className="rounded-2xl border border-line bg-surface py-16 text-center">
+            <div className="rounded-2xl border border-line bg-surface px-4 py-14 text-center">
               <Images size={28} className="mx-auto text-ink-subtle" aria-hidden="true" />
-              <p className="mt-3 text-sm font-medium text-ink">本月还没有账单封面</p>
+              <p className="mt-3 text-sm font-medium text-ink">本月还没有设过主题的账单</p>
               <p className="mt-1 text-sm text-ink-subtle">
-                在「明细」里点开任意一笔记录即可添加图片
+                在「明细」里点开一笔记录，写一句主题或配一张图，就会出现在这里
               </p>
             </div>
           )}

@@ -40,19 +40,74 @@ export function calcBudgetStatus(
   );
 
   // 为每个已设置预算的分类计算状态
-  return applicableBudgets.map((budget) => {
-    const spent = spentByCategory[budget.category] || 0;
-    const percentage = budget.monthlyLimit > 0 ? spent / budget.monthlyLimit : 0;
-    const level = getWarningLevel(percentage);
+  // 只设了「单笔上限」的记录 monthlyLimit 为 0，不参与月度进度条
+  return applicableBudgets
+    .filter((budget) => budget.monthlyLimit > 0)
+    .map((budget) => {
+      const spent = spentByCategory[budget.category] || 0;
+      const percentage = spent / budget.monthlyLimit;
+      const level = getWarningLevel(percentage);
 
-    return {
-      category: budget.category,
-      spent,
-      limit: budget.monthlyLimit,
-      percentage,
-      level,
-    };
-  });
+      return {
+        category: budget.category,
+        spent,
+        limit: budget.monthlyLimit,
+        percentage,
+        level,
+      };
+    });
+}
+
+/** 超出单笔上限的交易 */
+export interface OverLimitTransaction {
+  transaction: Transaction;
+  /** 该分类的单笔上限 */
+  limit: number;
+  /** 超出金额 */
+  over: number;
+}
+
+/**
+ * 找出超过「单笔消费上限」的交易
+ *
+ * 上限按分类配置，优先取精确月份的设置，其次取空字符串（所有月份通用）。
+ * 转账不计入消费，因此不参与判定。
+ */
+export function findOverLimitTransactions(
+  transactions: Transaction[],
+  budgets: Budget[],
+  month?: string,
+): OverLimitTransaction[] {
+  // 分类 → 生效的单笔上限
+  const limitByCategory = new Map<string, number>();
+  for (const budget of budgets) {
+    const limit = budget.maxPerTransaction ?? 0;
+    if (limit <= 0) continue;
+    const isExactMonth = month !== undefined && budget.month === month;
+    const isGeneric = budget.month === '';
+    if (isExactMonth) {
+      limitByCategory.set(budget.category, limit);
+    } else if (isGeneric && !limitByCategory.has(budget.category)) {
+      limitByCategory.set(budget.category, limit);
+    }
+  }
+
+  if (limitByCategory.size === 0) return [];
+
+  const result: OverLimitTransaction[] = [];
+  for (const txn of transactions) {
+    if (!isConsumption(txn)) continue;
+    if (month !== undefined && getMonthKey(txn.transactionTime) !== month) continue;
+    const limit = limitByCategory.get(txn.category);
+    if (limit === undefined) continue;
+    if (txn.amount > limit) {
+      result.push({ transaction: txn, limit, over: txn.amount - limit });
+    }
+  }
+
+  return result.sort((a, b) =>
+    b.transaction.transactionTime.localeCompare(a.transaction.transactionTime),
+  );
 }
 
 /**
