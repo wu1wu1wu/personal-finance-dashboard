@@ -33,6 +33,8 @@ interface TransactionStore {
   updateCategory: (id: string, category: string) => void;
   /** 批量更新分类（待确认收件箱多选归类） */
   updateCategoryBatch: (ids: string[], category: string) => void;
+  /** 按各自的分类批量写回（重新识别待确认记录用） */
+  applyCategories: (updates: { id: string; category: string }[]) => number;
   /** 切换周期性标记 */
   togglePeriodic: (id: string) => void;
   /** 添加标签 */
@@ -161,6 +163,19 @@ export const useTransactionStore = create<TransactionStore>((set, get) => ({
       ),
     }));
     get().persist();
+  },
+
+  applyCategories: (updates) => {
+    if (updates.length === 0) return 0;
+    const byId = new Map(updates.map((u) => [u.id, u.category]));
+    set((state) => ({
+      transactions: state.transactions.map((t) => {
+        const category = byId.get(t.id);
+        return category ? { ...t, category, categorySource: 'auto' } : t;
+      }),
+    }));
+    get().persist();
+    return updates.length;
   },
 
   deleteByMonths: (months) => {

@@ -4,6 +4,7 @@ export {
   formatCurrency,
   formatCurrencyShort,
   formatAmount,
+  formatAmountCompact,
   parseAmount,
   formatDateShort,
   formatMonthKey,

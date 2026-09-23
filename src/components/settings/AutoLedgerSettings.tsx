@@ -8,7 +8,10 @@ import { CircleCheck, CircleX, Smartphone, Stethoscope } from 'lucide-react';
 import AutoLedger from '@/plugins/AutoLedger';
 import type { CaptureRecord } from '@/plugins/AutoLedger';
 import { parseCapturedTransaction } from '@/core/transaction-capture';
+import type { CaptureRule, CaptureSettings } from '@/types';
+import { useCaptureRuleStore } from '@/stores/capture-rule-store';
 import { cn } from '@/utils/cn';
+import CaptureRuleEditor from '@/components/settings/CaptureRuleEditor';
 
 type DebugInfo = Awaited<ReturnType<typeof AutoLedger.getDebugInfo>>;
 
@@ -16,8 +19,20 @@ type DebugInfo = Awaited<ReturnType<typeof AutoLedger.getDebugInfo>>;
 const WECHAT_PACKAGE = 'com.tencent.mm';
 
 /** 单条诊断记录：时间 + 来源包名 + 解析结果 + 原文 */
-function CaptureRow({ item }: { item: CaptureRecord }) {
-  const parsed = parseCapturedTransaction(item.text);
+function CaptureRow({
+  item,
+  rules,
+  settings,
+}: {
+  item: CaptureRecord;
+  rules: CaptureRule[];
+  settings: CaptureSettings;
+}) {
+  const parsed = parseCapturedTransaction(item.text, {
+    packageName: item.package,
+    rules,
+    settings,
+  });
   const time = item.time
     ? new Date(item.time).toLocaleTimeString('zh-CN', { hour12: false })
     : '';
@@ -60,6 +75,8 @@ export default function AutoLedgerSettings() {
   const [notifEnabled, setNotifEnabled] = useState(false);
   const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null);
   const isNative = Capacitor.isNativePlatform();
+  const captureRules = useCaptureRuleStore((s) => s.rules);
+  const captureSettings = useCaptureRuleStore((s) => s.settings);
 
   const refreshDebug = async () => {
     try {
@@ -234,11 +251,21 @@ export default function AutoLedgerSettings() {
             </p>
             <div className="max-h-72 overflow-y-auto rounded-lg border border-line bg-surface p-2">
               {debugInfo.recent.map((item, i) => (
-                <CaptureRow key={`${item.time}-${item.package}-${i}`} item={item} />
+                <CaptureRow
+                  key={`${item.time}-${item.package}-${i}`}
+                  item={item}
+                  rules={captureRules}
+                  settings={captureSettings}
+                />
               ))}
             </div>
           </div>
         )}
+      </div>
+
+      {/* 消息读取规则 */}
+      <div className="mt-4 border-t border-line pt-4">
+        <CaptureRuleEditor />
       </div>
     </section>
   );

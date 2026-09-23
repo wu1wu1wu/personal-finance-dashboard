@@ -7,6 +7,8 @@ export interface CapturedTransaction {
   source: 'sms' | 'notification' | 'active';
   /** 原始文本 */
   text: string;
+  /** 通知来源包名，例如 com.tencent.mm；短信等无来源时为空串 */
+  package: string;
   /** 捕获时间戳（毫秒） */
   timestamp: number;
 }

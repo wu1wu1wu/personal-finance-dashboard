@@ -126,6 +126,34 @@ export interface AppSettings {
   defaultCategory: string;
 }
 
+/** 自动记账：用户自定义的消息读取规则 */
+export interface CaptureRule {
+  id: string;
+  /** 规则名，便于在列表里辨认 */
+  name: string;
+  enabled: boolean;
+  /** 来源包名包含这段文字时生效（空 = 不限来源） */
+  packageMatch: string;
+  /** 消息必须包含其中任一关键词（空 = 不限内容） */
+  contains: string[];
+  /** 消息包含其中任一关键词时忽略本条规则 */
+  excludes: string[];
+  /** 自定义金额正则，第一个捕获组是金额（空 = 用内置提取） */
+  amountRegex: string;
+  /** 收支方向 */
+  direction: 'expense' | 'income';
+  /** 直接归入的分类（空 = 交给分类引擎） */
+  category: string;
+}
+
+/** 自动记账：全局读取设置 */
+export interface CaptureSettings {
+  /** 这些来源 App 的通知一律不处理 */
+  ignorePackages: string[];
+  /** 消息包含这些词时一律不处理 */
+  ignoreKeywords: string[];
+}
+
 /** 存储键名常量 */
 export const STORAGE_KEYS = {
   TRANSACTIONS: 'pfd_transactions',
@@ -134,6 +162,8 @@ export const STORAGE_KEYS = {
   TOTAL_BUDGETS: 'pfd_total_budgets',
   SETTINGS: 'pfd_settings',
   CATEGORY_FEEDBACK: 'pfd_cat_feedback',
+  CAPTURE_RULES: 'pfd_capture_rules',
+  CAPTURE_SETTINGS: 'pfd_capture_settings',
 } as const;
 
 /** 分类定义 */

@@ -10,6 +10,7 @@ import {
   Check,
   ListChecks,
   ReceiptText,
+  RefreshCw,
   Search,
   SearchX,
   Trash,
@@ -20,7 +21,9 @@ import CategoryTag from '@/components/transactions/CategoryTag';
 import TransactionDetailModal from '@/components/transactions/TransactionDetailModal';
 import CategoryIcon from '@/components/ui/CategoryIcon';
 import { useTransactionStore } from '@/stores/transaction-store';
+import { useClassificationStore } from '@/stores/classification-store';
 import { usePerTransactionLimits } from '@/hooks/usePerTransactionLimits';
+import { classifyTransaction } from '@/core/classifier';
 import { formatCurrency, formatDateShort } from '@/utils/format';
 import { cn } from '@/utils/cn';
 import { CATEGORIES } from '@/types';
@@ -55,7 +58,10 @@ export default function Transactions() {
     loadFromStorage,
     deleteTransaction,
     updateCategoryBatch,
+    applyCategories,
   } = useTransactionStore();
+  const customRules = useClassificationStore((s) => s.customRules);
+  const loadRules = useClassificationStore((s) => s.loadFromStorage);
   const [searchParams, setSearchParams] = useSearchParams();
 
   // 分类筛选同时支持看板图表钻取
@@ -78,12 +84,14 @@ export default function Transactions() {
   // 批量归类
   const [batchMode, setBatchMode] = useState(false);
   const [batchIds, setBatchIds] = useState<string[]>([]);
+  const [reclassifyHint, setReclassifyHint] = useState<string | null>(null);
 
   const limitOf = usePerTransactionLimits();
 
   useEffect(() => {
     loadFromStorage();
-  }, [loadFromStorage]);
+    void loadRules();
+  }, [loadFromStorage, loadRules]);
 
   const months = useMemo(() => getAvailableMonths(transactions), [transactions]);
 
@@ -178,6 +186,22 @@ export default function Transactions() {
     exitBatch();
   };
 
+  // 补了分类关键词后，把还挂在「待确认」的记录重跑一遍分类
+  const handleReclassify = () => {
+    const updates = filteredTransactions
+      .filter((t) => t.category === '待确认')
+      .map((t) => ({ id: t.id, category: classifyTransaction(t, customRules) }))
+      .filter((u) => u.category !== '待确认');
+    const changed = applyCategories(updates);
+    if (changed > 0) {
+      setReclassifyHint(`已重新归类 ${changed} 笔`);
+      setTimeout(() => setReclassifyHint(null), 4000);
+    } else {
+      setReclassifyHint('没有可以自动归类的记录');
+      setTimeout(() => setReclassifyHint(null), 4000);
+    }
+  };
+
   const monthChips = [
     { value: '', label: '全部' },
     ...months.map((m) => ({ value: m, label: `${Number(m.split('-')[1])}月` })),
@@ -192,22 +216,48 @@ export default function Transactions() {
             <p className="text-xs text-ink-subtle tnum">共 {summary.count} 笔</p>
           )}
           {pendingOnly && filteredTransactions.length > 0 && (
-            <button
-              type="button"
-              onClick={() => (batchMode ? exitBatch() : setBatchMode(true))}
-              className={cn(
-                'flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors',
-                batchMode
-                  ? 'bg-canvas text-ink-muted'
-                  : 'bg-brand text-white hover:bg-brand/90',
+            <>
+              {!batchMode && (
+                <button
+                  type="button"
+                  onClick={handleReclassify}
+                  className="flex items-center gap-1 rounded-lg bg-canvas px-2.5 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:text-ink"
+                >
+                  <RefreshCw size={13} aria-hidden="true" />
+                  重新识别
+                </button>
               )}
-            >
-              {batchMode ? <X size={13} aria-hidden="true" /> : <ListChecks size={13} aria-hidden="true" />}
-              {batchMode ? '取消' : '批量归类'}
-            </button>
+              <button
+                type="button"
+                onClick={() => (batchMode ? exitBatch() : setBatchMode(true))}
+                className={cn(
+                  'flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors',
+                  batchMode
+                    ? 'bg-canvas text-ink-muted'
+                    : 'bg-brand text-white hover:bg-brand/90',
+                )}
+              >
+                {batchMode ? (
+                  <X size={13} aria-hidden="true" />
+                ) : (
+                  <ListChecks size={13} aria-hidden="true" />
+                )}
+                {batchMode ? '取消' : '批量归类'}
+              </button>
+            </>
           )}
         </div>
       </div>
+
+      {reclassifyHint && (
+        <p
+          role="status"
+          aria-live="polite"
+          className="rounded-lg bg-income-soft px-3 py-2 text-xs text-income"
+        >
+          {reclassifyHint}
+        </p>
+      )}
 
       {/* 月份筛选：左上角，按月份倒序 */}
       {monthChips.length > 1 && (

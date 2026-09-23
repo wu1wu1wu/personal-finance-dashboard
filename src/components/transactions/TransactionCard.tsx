@@ -9,7 +9,7 @@ import { X } from 'lucide-react';
 import type { Transaction } from '@/types';
 import { CATEGORIES } from '@/types';
 import { TRANSFER_CATEGORY } from '@/core/transaction-query';
-import { formatAmount, formatDateShort } from '@/utils/format';
+import { formatAmountCompact, formatDateShort } from '@/utils/format';
 import { cn } from '@/utils/cn';
 import CategoryIcon from '@/components/ui/CategoryIcon';
 
@@ -27,7 +27,11 @@ export default function TransactionCard({ txn, onClick, onClearTheme }: Transact
   const isTransfer = txn.category === TRANSFER_CATEGORY;
   const hasImage = Boolean(txn.coverImage);
 
+  // 圆形里的金额用颜色区分收支方向，不再重复加正负号
   const amountColor = isTransfer ? 'text-ink-muted' : isExpense ? 'text-expense' : 'text-income';
+  const amountCircleStyle = hasImage
+    ? undefined
+    : { backgroundColor: `${cat.color}14`, color: cat.color };
 
   return (
     <li className="relative">
@@ -63,33 +67,30 @@ export default function TransactionCard({ txn, onClick, onClearTheme }: Transact
           <div className="flex items-center gap-3">
             <span
               className={cn(
-                'flex h-12 w-12 shrink-0 items-center justify-center rounded-full',
-                hasImage ? 'bg-white/20 text-white' : '',
+                'flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-full',
+                hasImage ? 'bg-white/20 text-white' : amountColor,
               )}
-              style={
-                hasImage
-                  ? undefined
-                  : { backgroundColor: `${cat.color}18`, color: cat.color }
-              }
+              style={amountCircleStyle}
             >
-              <CategoryIcon category={txn.category} size={19} />
+              <span className="tnum text-[15px] font-semibold leading-none">
+                {formatAmountCompact(txn.amount)}
+              </span>
+              <span className="mt-0.5 text-[10px] opacity-80">元</span>
             </span>
 
             <span className="min-w-0 flex-1">
               <span
                 className={cn(
-                  'tnum block whitespace-nowrap text-lg font-semibold',
-                  hasImage ? 'text-white' : amountColor,
+                  'block text-base font-medium',
+                  hasImage ? 'text-white' : 'text-ink',
                 )}
               >
-                {isTransfer ? '' : isExpense ? '-' : '+'}
-                {formatAmount(txn.amount)}
-                <span className="ml-0.5 text-xs font-normal">元</span>
+                {txn.theme || txn.counterparty || txn.description || '未命名'}
               </span>
               <span
                 className={cn(
-                  'mt-0.5 block truncate text-sm',
-                  hasImage ? 'text-white/90' : 'text-ink',
+                  'mt-0.5 block truncate text-xs',
+                  hasImage ? 'text-white/85' : 'text-ink-subtle',
                 )}
               >
                 {txn.counterparty || txn.description || '未知交易'}
@@ -97,22 +98,10 @@ export default function TransactionCard({ txn, onClick, onClearTheme }: Transact
             </span>
           </div>
 
-          {/* 主题 */}
-          {txn.theme && (
-            <p
-              className={cn(
-                'mt-3 truncate text-base font-medium',
-                hasImage ? 'text-white' : 'text-ink',
-              )}
-            >
-              {txn.theme}
-            </p>
-          )}
-
           {/* 类型 + 时间 */}
           <div
             className={cn(
-              'mt-2.5 flex items-center justify-between gap-3 text-xs',
+              'mt-3 flex items-center justify-between gap-3 text-xs',
               hasImage ? 'text-white/80' : 'text-ink-subtle',
             )}
           >

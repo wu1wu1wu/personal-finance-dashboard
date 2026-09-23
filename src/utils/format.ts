@@ -42,6 +42,20 @@ export function formatAmount(amount: number): string {
 }
 
 /**
+ * 金额的紧凑写法，给圆形徽标这类空间很小的位置用
+ * 1280 → "1,280"；12800 → "1.3万"
+ */
+export function formatAmountCompact(amount: number): string {
+  const abs = Math.abs(amount);
+  if (abs >= 10000) {
+    const wan = abs / 10000;
+    return `${wan >= 10 ? wan.toFixed(0) : wan.toFixed(1)}万`;
+  }
+  if (abs >= 1000) return Math.round(abs).toLocaleString('zh-CN');
+  return abs.toFixed(2);
+}
+
+/**
  * 解析微信CSV金额字符串
  * "¥128.50" → 128.50
  * "-¥50.00" → -50.00

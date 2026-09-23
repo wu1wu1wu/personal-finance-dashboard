@@ -12,6 +12,7 @@ import { classifyTransaction } from '@/core/classifier';
 import { generateTransactionId } from '@/utils/id';
 import { useTransactionStore } from '@/stores/transaction-store';
 import { useClassificationStore } from '@/stores/classification-store';
+import { useCaptureRuleStore } from '@/stores/capture-rule-store';
 import { buildHabitModel } from '@/core/habit-learner';
 import type { HabitModel } from '@/core/habit-learner';
 import type { Transaction } from '@/types';
@@ -37,7 +38,12 @@ function formatDateTime(ms: number): string {
 
 /** 解析并写入一条捕获到的交易 */
 function processCapture(data: CapturedTransaction) {
-  const parsed = parseCapturedTransaction(data.text);
+  const { rules, settings } = useCaptureRuleStore.getState();
+  const parsed = parseCapturedTransaction(data.text, {
+    packageName: data.package ?? '',
+    rules,
+    settings,
+  });
   if (!parsed) return;
 
   // 同一笔会同时走「实时推送」和「持久队列」两条路，按来源时间戳去重
@@ -69,12 +75,17 @@ function processCapture(data: CapturedTransaction) {
   };
 
   const customRules = useClassificationStore.getState().customRules;
-  let category = classifyTransaction(txn, customRules);
+  // 自定义读取规则可以直接指定分类，优先级高于关键词分类
+  let category = parsed.category || classifyTransaction(txn, customRules);
   let categorySource: Transaction['categorySource'] = 'auto';
+
+  if (parsed.category) {
+    categorySource = 'manual';
+  }
 
   // 关键词规则没命中时，用历史账单学到的「金额 + 时段」习惯给一个推测分类。
   // 推测结果单独标记，方便用户一眼分辨并能一键改正。
-  if (category === '待确认') {
+  if (!parsed.category && category === '待确认') {
     const guess = getHabitModel(store.transactions).predict(txn);
     if (guess) {
       category = guess.category;
@@ -94,6 +105,7 @@ async function syncCaptures() {
   await Promise.all([
     useTransactionStore.getState().loadFromStorage(),
     useClassificationStore.getState().loadFromStorage(),
+    useCaptureRuleStore.getState().loadFromStorage(),
   ]);
 
   try {

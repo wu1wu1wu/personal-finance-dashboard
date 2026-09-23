@@ -65,8 +65,8 @@ public class AutoLedgerPlugin extends Plugin {
     }
 
     /** 把捕获到的原始文本发给 Web 层（实时推） */
-    public void emitCapturedText(String source, String text) {
-        emitCapturedText(source, text, System.currentTimeMillis());
+    public void emitCapturedText(String source, String text, String packageName) {
+        emitCapturedText(source, text, packageName, System.currentTimeMillis());
     }
 
     /**
@@ -74,11 +74,13 @@ public class AutoLedgerPlugin extends Plugin {
      * timestamp 由调用方传入：队列与实时推送必须用同一个时间戳，
      * 否则同一笔会被当成两条记录（Web 层用 timestamp 生成去重 ID）。
      */
-    public void emitCapturedText(String source, String text, long timestamp) {
+    public void emitCapturedText(String source, String text, String packageName, long timestamp) {
         if (text == null || text.trim().isEmpty()) return;
         JSObject data = new JSObject();
         data.put("source", source); // "sms" / "notification" / "active"
         data.put("text", text);
+        // 来源包名交给 Web 层，用于「按来源 App 限定」的自定义读取规则
+        data.put("package", packageName == null ? "" : packageName);
         data.put("timestamp", timestamp);
         notifyListeners("transactionCaptured", data, true);
     }
@@ -120,7 +122,7 @@ public class AutoLedgerPlugin extends Plugin {
 
         // 2. 疑似交易的落盘到持久队列（App 被杀 / 后台也能补记）
         if (likely) {
-            enqueueCapture(context, source, raw, now);
+            enqueueCapture(context, source, raw, pkg, now);
         }
 
         // 3. 记录诊断信息（最近若干条 + 最后一次）——全量记录，否则无从排查
@@ -131,7 +133,7 @@ public class AutoLedgerPlugin extends Plugin {
             AutoLedgerPlugin p = instance;
             if (p != null) {
                 // 与入队共用同一个 now，保证 Web 层能把两者去重
-                p.emitCapturedText(source, raw, now);
+                p.emitCapturedText(source, raw, pkg, now);
             }
         }
     }
@@ -344,6 +346,7 @@ public class AutoLedgerPlugin extends Plugin {
                 JSObject js = new JSObject();
                 js.put("source", obj.optString("source"));
                 js.put("text", obj.optString("text"));
+                js.put("package", obj.optString("package"));
                 js.put("timestamp", obj.optLong("timestamp"));
                 ret.put(js);
             } catch (JSONException ignored) {
@@ -378,13 +381,15 @@ public class AutoLedgerPlugin extends Plugin {
 
     // ---- 持久队列实现 ----
 
-    private static void enqueueCapture(Context context, String source, String text, long timestamp) {
+    private static void enqueueCapture(Context context, String source, String text,
+                                       String packageName, long timestamp) {
         try {
             SharedPreferences prefs = context.getSharedPreferences(QUEUE_PREFS, Context.MODE_PRIVATE);
             JSONArray arr = readQueue(prefs);
             JSONObject obj = new JSONObject();
             obj.put("source", source);
             obj.put("text", text);
+            obj.put("package", packageName == null ? "" : packageName);
             obj.put("timestamp", timestamp);
             arr.put(obj);
             while (arr.length() > MAX_QUEUE) {
