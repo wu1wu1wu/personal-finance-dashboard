@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   Plus,
@@ -18,6 +18,7 @@ import SettingsData from '@/pages/SettingsData';
 import SettingsImport from '@/pages/SettingsImport';
 import Cleanup from '@/pages/Cleanup';
 import AddTransactionModal from '@/components/transactions/AddTransactionModal';
+import PersistAlert from '@/components/ui/PersistAlert';
 import { useAutoLedger } from '@/hooks/useAutoLedger';
 
 const navItems = [
@@ -40,6 +41,9 @@ export default function App() {
         >
           跳到主要内容
         </a>
+
+        {/* 存储写失败时的常驻告警：数据没落盘必须让用户看到 */}
+        <PersistAlert />
 
         {/* 顶部导航（桌面端） */}
         <nav className="sticky top-0 z-30 hidden border-b border-line bg-surface md:block">
@@ -87,6 +91,8 @@ export default function App() {
             <Route path="/settings/data" element={<SettingsData />} />
             <Route path="/settings/about" element={<SettingsAbout />} />
             <Route path="/cleanup" element={<Cleanup />} />
+            {/* 未知路径回看板，别留给用户一片空白 */}
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
 

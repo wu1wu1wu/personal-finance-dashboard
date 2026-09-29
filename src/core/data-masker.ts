@@ -51,11 +51,16 @@ export function maskCounterparty(counterparty: string): string {
 
 /**
  * 对单条交易记录进行脱敏
+ *
+ * 姓名不在这里处理：商户名常和姓氏撞车（「张三丰饺子店」会被打成「张**饺子店」），
+ * 银行卡号、手机号、交易单号这几类才有稳定的模式可依。
  */
 export function maskTransaction(txn: Transaction): Transaction {
   return {
     ...txn,
     counterparty: maskCounterparty(txn.counterparty),
+    // description 是短信/通知原文，同样可能带卡号和手机号
+    description: maskCounterparty(txn.description),
     // 交易单号脱敏（保留前后4位）
     transactionNo: txn.transactionNo.length > 8
       ? txn.transactionNo.slice(0, 4) + '****' + txn.transactionNo.slice(-4)

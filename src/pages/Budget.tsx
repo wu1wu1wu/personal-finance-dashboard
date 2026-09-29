@@ -13,7 +13,7 @@ import {
 } from '@/core/budget-engine';
 import BudgetProgressBar from '@/components/budget/BudgetProgressBar';
 import BudgetEditor from '@/components/budget/BudgetEditor';
-import { getCurrentMonth, getRecentMonths } from '@/utils/date';
+import { getCurrentMonth, buildMonthOptions } from '@/utils/date';
 import { formatCurrency, formatDateShort } from '@/utils/format';
 import { cn } from '@/utils/cn';
 import type { BudgetStatus } from '@/types';
@@ -31,7 +31,15 @@ export default function Budget() {
     loadTxns();
   }, [loadBudgets, loadTxns]);
 
-  const months = useMemo(() => getRecentMonths(6), []);
+  // 月份选项：最近 6 个月 ∪ 有数据的月份 ∪ 有预算的月份 ∪ 下个月（可以提前给下个月设预算）
+  const months = useMemo(
+    () =>
+      buildMonthOptions(
+        transactions.map((t) => t.transactionTime.substring(0, 7)),
+        [...budgets.map((b) => b.month), ...Object.keys(totalBudgets)],
+      ),
+    [transactions, budgets, totalBudgets],
+  );
 
   const budgetStatuses: BudgetStatus[] = useMemo(() => {
     if (!txnLoaded || !budgetLoaded) return [];

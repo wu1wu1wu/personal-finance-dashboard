@@ -24,7 +24,7 @@ interface CategoryTagProps {
   /** 商品说明（用于反馈学习） */
   description: string;
   /** 分类来源 */
-  source?: 'auto' | 'manual' | 'guessed';
+  source?: 'auto' | 'rule' | 'manual' | 'guessed';
   /** 是否可编辑 */
   editable?: boolean;
 }
@@ -53,6 +53,11 @@ export default function CategoryTag({
       {source === 'guessed' && (
         <span className="ml-0.5 text-[10px] opacity-70" title="按历史习惯推测">
           推测
+        </span>
+      )}
+      {source === 'rule' && (
+        <span className="ml-0.5 text-[10px] opacity-70" title="按自定义消息规则归类">
+          规则
         </span>
       )}
     </>

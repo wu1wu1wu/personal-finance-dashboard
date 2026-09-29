@@ -49,10 +49,42 @@ function parseTime(value: string): number | null {
 
 /**
  * 是否是「可被回填的占位记录」。
- * 只有自动捕获、且用户没有手动指定过分类的记录才允许被覆盖。
+ *
+ * 只有自动捕获、且用户没有真正动过的记录才允许被覆盖：
+ * - `categorySource === 'manual'`：用户手动指定的分类
+ * - `userEdited`：用户编辑过金额/时间/商户等内容
+ *
+ * 注意 `categorySource === 'rule'`（自定义读取规则直接指定的分类）**仍然算占位**：
+ * 那是规则给的，不是用户改的，这类记录同样需要账单来补全商户名。
  */
 export function isPlaceholder(txn: Transaction): boolean {
-  return txn.origin === 'auto' && txn.categorySource !== 'manual';
+  return txn.origin === 'auto' && !txn.userEdited && txn.categorySource !== 'manual';
+}
+
+/**
+ * 这条账单是不是已经在库里了。
+ *
+ * 回填会保留占位记录的 id，所以账单自己的 id 记在 `billId` 上；再叠加交易单号，
+ * 防止同一笔被重复导入（重复导入会让支出翻倍）。
+ */
+export function isAlreadyImported(existing: Transaction[], bill: Transaction): boolean {
+  return existing.some(
+    (txn) =>
+      txn.id === bill.id ||
+      (!!bill.id && txn.billId === bill.id) ||
+      (!!bill.transactionNo && txn.transactionNo === bill.transactionNo),
+  );
+}
+
+/** 自动捕获的记录是否已经在库里（id 或交易单号命中） */
+export function isDuplicateCapture(
+  existing: Transaction[],
+  id: string,
+  transactionNo: string,
+): boolean {
+  return existing.some(
+    (txn) => txn.id === id || (!!transactionNo && txn.transactionNo === transactionNo),
+  );
 }
 
 interface CandidatePair {
@@ -130,6 +162,9 @@ export function reconcileImportedBills(
       paymentMethod: bill.paymentMethod || placeholder.paymentMethod,
       paymentStatus: bill.paymentStatus || placeholder.paymentStatus,
       transactionNo: bill.transactionNo || placeholder.transactionNo,
+      // 账单自己的 id 另存一份：占位 id 要保留（封面、标签不丢），
+      // 但再次导入同一账单时得靠它认出这笔已经存在
+      billId: bill.id || placeholder.billId,
       origin: 'import',
     };
 

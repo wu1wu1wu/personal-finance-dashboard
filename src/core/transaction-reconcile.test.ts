@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import type { Transaction } from '@/types'
-import { reconcileImportedBills, isPlaceholder, MATCH_WINDOW_MS } from './transaction-reconcile'
+import {
+  reconcileImportedBills,
+  isPlaceholder,
+  isAlreadyImported,
+  isDuplicateCapture,
+  MATCH_WINDOW_MS,
+} from './transaction-reconcile'
 
 function txn(partial: Partial<Transaction> & Pick<Transaction, 'id'>): Transaction {
   return {
@@ -210,6 +216,105 @@ describe('reconcileImportedBills 同金额多笔', () => {
     const r = reconcileImportedBills(existing, imported)
 
     expect(r.stats.enrichedCount).toBe(1)
+  })
+})
+
+describe('isAlreadyImported（重复导入保护）', () => {
+  it('回填过的记录要记住账单 id，再次导入同一账单时能被识别', () => {
+    const existing = [placeholder('p1', '2026-09-10 12:00:00', 23)]
+    const imported = [bill('b1', '2026-09-10 12:00:05', 23, '美团')]
+
+    const first = reconcileImportedBills(existing, imported)
+    expect(first.stats.enrichedCount).toBe(1)
+
+    // 回填保留了占位 id，账单自己的 id 必须另存，否则二次导入查不到
+    expect(first.transactions[0].id).toBe('p1')
+    expect(first.transactions[0].billId).toBe('b1')
+
+    // 第二次导入同一份账单：应判为已存在，不能再加一条
+    expect(isAlreadyImported(first.transactions, imported[0])).toBe(true)
+  })
+
+  it('上次按新记录加入的账单，靠 id 就能识别', () => {
+    const existing = [placeholder('p9', '2026-08-01 10:00:00', 99)]
+    const imported = [bill('b1', '2026-09-10 12:00:05', 23, '美团')]
+
+    const first = reconcileImportedBills(existing, imported)
+    expect(first.stats.addedCount).toBe(1)
+
+    expect(isAlreadyImported(first.transactions, imported[0])).toBe(true)
+  })
+
+  it('交易单号相同也算重复（防止跨导出格式的 id 漂移）', () => {
+    const existing = [bill('b1', '2026-09-10 12:00:00', 23, '美团')]
+    const sameNo = { ...bill('b2', '2026-09-10 12:00:00', 23, '美团'), transactionNo: existing[0].transactionNo }
+
+    expect(isAlreadyImported(existing, sameNo)).toBe(true)
+  })
+
+  it('真正的新账单不会被误判', () => {
+    const existing = [bill('b1', '2026-09-10 12:00:00', 23, '美团')]
+    const fresh = bill('b2', '2026-09-11 12:00:00', 24, '便利店')
+
+    expect(isAlreadyImported(existing, fresh)).toBe(false)
+  })
+})
+
+describe('回填白名单（哪些记录允许被覆盖）', () => {
+  it('规则指定分类的记录仍然可以被回填', () => {
+    const withRule = {
+      ...placeholder('p1', '2026-09-10 12:00:00', 23),
+      categorySource: 'rule' as const,
+      category: '转账',
+    }
+
+    expect(isPlaceholder(withRule)).toBe(true)
+    const r = reconcileImportedBills([withRule], [bill('b1', '2026-09-10 12:00:05', 23, '美团')])
+    expect(r.stats.enrichedCount).toBe(1)
+    expect(r.transactions[0].counterparty).toBe('美团')
+  })
+
+  it('用户手动改过分类的记录不回填', () => {
+    const manual = {
+      ...placeholder('p1', '2026-09-10 12:00:00', 23),
+      categorySource: 'manual' as const,
+      category: '餐饮美食',
+    }
+
+    expect(isPlaceholder(manual)).toBe(false)
+  })
+
+  it('用户编辑过内容的记录不回填', () => {
+    const edited = { ...placeholder('p1', '2026-09-10 12:00:00', 23), userEdited: true }
+
+    expect(isPlaceholder(edited)).toBe(false)
+  })
+})
+
+describe('isDuplicateCapture（通知/短信重放保护）', () => {
+  it('回填后交易单号被换成账单单号，重放同一条捕获仍要能靠 id 认出', () => {
+    const capturedId = 'captured-1'
+    const existing = [placeholder(capturedId, '2026-09-10 12:00:00', 23)]
+    const imported = [bill('b1', '2026-09-10 12:00:05', 23, '美团')]
+
+    const reconciled = reconcileImportedBills(existing, imported).transactions
+    // 回填把自动单号换成了账单单号，单号已经认不出来了
+    expect(reconciled[0].transactionNo).toBe(imported[0].transactionNo)
+
+    // 队列重放时会用原捕获重算 id 与单号：靠 id 才认得出这条已经记过
+    expect(isDuplicateCapture(reconciled, capturedId, 'auto-2026-09-10 12:00:00')).toBe(true)
+  })
+
+  it('同一条通知重复投递靠交易单号识别', () => {
+    const existing = [placeholder('p1', '2026-09-10 12:00:00', 23)]
+
+    expect(isDuplicateCapture(existing, 'p2', 'auto-2026-09-10 12:00:00')).toBe(true)
+  })
+
+  it('真正的新捕获不会被误判', () => {
+    const existing = [placeholder('p1', '2026-09-10 12:00:00', 23)]
+
+    expect(isDuplicateCapture(existing, 'p2', 'auto-2026-09-10 18:00:00')).toBe(false)
   })
 })
 

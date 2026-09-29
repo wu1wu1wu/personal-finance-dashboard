@@ -159,7 +159,7 @@ export default function Cleanup() {
 
       {/* 底部操作条 */}
       {selected.length > 0 && (
-        <div className="fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-40 px-4">
+        <div className="fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-40 px-4 md:bottom-4">
           <div className="mx-auto max-w-md rounded-xl border border-line bg-surface p-3 shadow-lg">
             {confirming ? (
               <div className="space-y-2.5">

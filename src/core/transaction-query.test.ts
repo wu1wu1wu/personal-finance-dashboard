@@ -35,6 +35,28 @@ const data: Transaction[] = [
   txn({ id: 'd', transactionTime: '2026-08-01 10:00:00', amount: 20, counterparty: '地铁', category: '交通出行' }),
 ]
 
+describe('queryTransactions 金额区间', () => {
+  it('按最小金额筛掉小额', () => {
+    const r = queryTransactions(data, { minAmount: 50 })
+    expect(r.map((t) => t.id).sort()).toEqual(['b', 'c'])
+  })
+
+  it('按最大金额筛掉大额', () => {
+    const r = queryTransactions(data, { maxAmount: 50 })
+    expect(r.map((t) => t.id).sort()).toEqual(['a', 'd'])
+  })
+
+  it('区间按绝对值比较（收入 -5000 算大额）', () => {
+    const r = queryTransactions(data, { minAmount: 1000 })
+    expect(r.map((t) => t.id)).toEqual(['b'])
+  })
+
+  it('两端都给就是闭区间', () => {
+    const r = queryTransactions(data, { minAmount: 20, maxAmount: 100 })
+    expect(r.map((t) => t.id).sort()).toEqual(['a', 'c', 'd'])
+  })
+})
+
 describe('queryTransactions 筛选', () => {
   it('按支出筛选，只留 amount > 0', () => {
     const r = queryTransactions(data, { direction: 'expense' })

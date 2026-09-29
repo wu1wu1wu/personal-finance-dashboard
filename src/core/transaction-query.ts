@@ -19,6 +19,10 @@ export interface TransactionQuery {
   direction?: DirectionFilter;
   /** 关键词（匹配交易对方 / 商品说明） */
   keyword?: string;
+  /** 最小金额（按绝对值比较，含） */
+  minAmount?: number;
+  /** 最大金额（按绝对值比较，含） */
+  maxAmount?: number;
   /** 排序方式 */
   sort?: SortKey;
 }
@@ -49,10 +53,12 @@ export function isIncome(txn: Transaction): boolean {
 /**
  * 是否计入「消费支出」统计。
  * 转账（含红包/提现/退款）只是资金搬运，计入会让支出结构、饼图和预算全部失真，所以排除。
+ * 账单里「收/支」列写着「不计收支」的记录（零钱提现、信用卡还款等）标记为「其他」，
+ * 它们同样不是消费，一并排除。
  * 全站的支出统计都应通过这个判定，不要在各自模块里散着写字符串比较。
  */
 export function isConsumption(txn: Transaction): boolean {
-  return txn.amount > 0 && txn.category !== TRANSFER_CATEGORY;
+  return txn.amount > 0 && txn.category !== TRANSFER_CATEGORY && txn.transactionType !== '其他';
 }
 
 /**
@@ -83,6 +89,8 @@ export function queryTransactions(
     month,
     direction = 'all',
     keyword,
+    minAmount,
+    maxAmount,
     sort = 'time-desc',
   } = query;
 
@@ -94,6 +102,10 @@ export function queryTransactions(
     // 「支出」按消费口径筛选，转账单独看（与统计口径保持一致）
     if (direction === 'expense' && !isConsumption(t)) return false;
     if (direction === 'income' && !isIncome(t)) return false;
+    // 金额区间按绝对值比较：这样"100 元以上"对收入和支出一视同仁
+    const abs = Math.abs(t.amount);
+    if (minAmount !== undefined && abs < minAmount) return false;
+    if (maxAmount !== undefined && abs > maxAmount) return false;
     if (kw) {
       const haystack = `${t.counterparty} ${t.description}`.toLowerCase();
       if (!haystack.includes(kw)) return false;

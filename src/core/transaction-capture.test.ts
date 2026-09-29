@@ -44,6 +44,28 @@ describe('parseCapturedTransaction', () => {
     expect(r?.amount).toBe(-100)
   })
 
+  // 「收款方」里的「收款」描述的是钱的去向对象，不是方向。
+  // 付款通知常带这个字段，若按包含「收款」判成收入，整笔钱的符号就反了。
+  it('付款通知里的「收款方」不能判成收入', () => {
+    const r = parseCapturedTransaction('微信支付 付款成功 ¥23.00 收款方：7-ELEVEN便利店')
+    expect(r?.transactionType).toBe('支出')
+    expect(r?.amount).toBe(23)
+  })
+
+  it('银行短信：支出 + 收款方', () => {
+    const r = parseCapturedTransaction(
+      '【招商银行】您尾号1234卡8月30日20:05支出人民币23.00元，收款方：某便利店',
+    )
+    expect(r?.transactionType).toBe('支出')
+    expect(r?.amount).toBe(23)
+  })
+
+  it('「收款人」同样不代表收入', () => {
+    const r = parseCapturedTransaction('您已向收款人张三代付 支付金额50.00元')
+    expect(r?.transactionType).toBe('支出')
+    expect(r?.amount).toBe(50)
+  })
+
   it('非交易短信（验证码）返回 null', () => {
     expect(parseCapturedTransaction('您的验证码是123456，请勿泄露')).toBeNull()
   })

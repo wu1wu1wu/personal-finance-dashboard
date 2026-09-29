@@ -22,6 +22,26 @@ function cleanField(value: string | undefined | null): string {
 }
 
 /**
+ * 微信「交易类型」列里对分类有用的词。
+ * 微信写的是「零钱提现」「信用卡还款」这类复合词，所以按包含匹配，
+ * 命中的原始类型会并入 description，让分类器能识别出转账类资金搬运。
+ */
+const INFORMATIVE_TYPE_KEYWORDS = [
+  '转账',
+  '红包',
+  '提现',
+  '退款',
+  '还款',
+  '零钱通',
+  '扫二维码付款',
+  '群收款',
+];
+
+function isInformativeType(wechatType: string): boolean {
+  return INFORMATIVE_TYPE_KEYWORDS.some((kw) => wechatType.includes(kw));
+}
+
+/**
  * 将 Excel 日期序列号转为标准日期时间字符串
  * Excel 日期序列号 = 1900-01-01 以来的天数（含Excel的1900年闰年bug）
  * 例如: 46203.89304398148 → "2026-06-30 21:26:00"
@@ -210,7 +230,7 @@ async function parseWechatXLSX(
     const hasTransactionTime = headers.some((h) => h.includes('交易时间'));
     const hasTransactionNo = headers.some((h) => h.includes('交易单号'));
 
-    if (!hasTransactionTime && !hasTransactionNo) {
+    if (!hasTransactionTime || !hasTransactionNo) {
       return {
         transactions: [],
         skippedRows: 0,
@@ -266,6 +286,8 @@ async function parseWechatXLSX(
         if (!mapped.transactionTime || !mapped.transactionNo) continue;
 
         // 金额解析
+        // 「收/支」列有三种情况：支出、收入，以及「/」这类不计收支（零钱提现、信用卡还款等）。
+        // 不计收支的既不是支出也不是收入，标记成「其他」，由 isConsumption 排除在支出统计之外。
         const rawAmount = parseAmount(mapped.amountRaw || '0');
         const isExpense = mapped.incomeExpense === '支出';
         const isIncome = mapped.incomeExpense === '收入';
@@ -281,9 +303,9 @@ async function parseWechatXLSX(
         // 保留微信原始交易类型（转账/红包/扫码等），合并到描述中供分类器使用
         const wechatType = mapped.transactionType || '';
         const rawDescription = cleanField(mapped.description) || cleanField(mapped.remark);
-        // 当原始微信类型是分类关键信息时，合并到描述中
-        const informativeTypes = ['转账', '红包', '提现', '退款', '扫二维码付款', '群收款'];
-        const description = informativeTypes.includes(wechatType) && !rawDescription.includes(wechatType)
+        // 当原始微信类型是分类关键信息时，合并到描述中；
+        // 微信写的是「零钱提现」「信用卡还款」这类复合词，所以用包含匹配
+        const description = isInformativeType(wechatType) && !rawDescription.includes(wechatType)
           ? (rawDescription ? `${wechatType}: ${rawDescription}` : wechatType)
           : rawDescription;
 
@@ -426,6 +448,8 @@ async function parseWechatCSVText(
       if (!mapped.transactionTime || !mapped.transactionNo) continue;
 
       // 金额解析
+      // 「收/支」列有三种情况：支出、收入，以及「/」这类不计收支（零钱提现、信用卡还款等）。
+      // 不计收支的既不是支出也不是收入，标记成「其他」，由 isConsumption 排除在支出统计之外。
       const rawAmount = parseAmount(mapped.amountRaw || '0');
       // "支出"为正数，"收入"为负数
       const isExpense = mapped.incomeExpense === '支出';
@@ -439,11 +463,11 @@ async function parseWechatCSVText(
           ? '收入'
           : '其他';
 
-      // 保留微信原始交易类型（转账/红包/扫码等），合并到描述中供分类器使用
+      // 保留微信原始交易类型（转账/红包/扫码等），合并到描述中供分类器使用。
+      // 微信实际写的是「零钱提现」「信用卡还款」这类复合词，所以用包含匹配而不是等值匹配。
       const wechatType = mapped.transactionType || '';
       const rawDescription = cleanField(mapped.description) || cleanField(mapped.remark);
-      const informativeTypes = ['转账', '红包', '提现', '退款', '扫二维码付款', '群收款'];
-      const description = informativeTypes.includes(wechatType) && !rawDescription.includes(wechatType)
+      const description = isInformativeType(wechatType) && !rawDescription.includes(wechatType)
         ? (rawDescription ? `${wechatType}: ${rawDescription}` : wechatType)
         : rawDescription;
 

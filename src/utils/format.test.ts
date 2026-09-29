@@ -3,9 +3,30 @@ import {
   formatCurrency,
   formatCurrencyShort,
   parseAmount,
+  parseAmountInput,
   formatDateShort,
   formatMonthKey,
 } from './format'
+
+describe('parseAmountInput', () => {
+  it('空输入不构成筛选条件', () => {
+    expect(parseAmountInput('')).toBeUndefined()
+    expect(parseAmountInput('   ')).toBeUndefined()
+  })
+
+  it('解析普通数字', () => {
+    expect(parseAmountInput('100')).toBe(100)
+    expect(parseAmountInput('12.5')).toBe(12.5)
+  })
+
+  it('取绝对值，收入也按金额大小比较', () => {
+    expect(parseAmountInput('-50')).toBe(50)
+  })
+
+  it('非数字输入不构成筛选条件', () => {
+    expect(parseAmountInput('abc')).toBeUndefined()
+  })
+})
 
 describe('parseAmount', () => {
   it('解析带 ¥ 符号的金额', () => {

@@ -6,6 +6,7 @@ import { create } from 'zustand';
 import type { CaptureRule, CaptureSettings } from '@/types';
 import { STORAGE_KEYS } from '@/types';
 import { storage } from '@/storage/StorageAdapter';
+import { queuePersist } from '@/storage/persist-queue';
 import { generateId } from '@/utils/id';
 
 const DEFAULT_SETTINGS: CaptureSettings = {
@@ -78,10 +79,12 @@ export const useCaptureRuleStore = create<CaptureRuleStore>((set, get) => ({
   },
 
   persist: async () => {
-    const { rules, settings } = get();
-    await Promise.all([
-      storage.set(STORAGE_KEYS.CAPTURE_RULES, rules),
-      storage.set(STORAGE_KEYS.CAPTURE_SETTINGS, settings),
-    ]);
+    queuePersist('capture-rules', async () => {
+      const { rules, settings } = get();
+      await Promise.all([
+        storage.set(STORAGE_KEYS.CAPTURE_RULES, rules),
+        storage.set(STORAGE_KEYS.CAPTURE_SETTINGS, settings),
+      ]);
+    });
   },
 }));

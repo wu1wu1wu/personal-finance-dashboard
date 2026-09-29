@@ -6,6 +6,7 @@ import { create } from 'zustand';
 import type { ClassificationRule } from '@/types';
 import { STORAGE_KEYS } from '@/types';
 import { storage } from '@/storage/StorageAdapter';
+import { queuePersist } from '@/storage/persist-queue';
 import { BUILTIN_RULES } from '@/constants/rules';
 import { processFeedback } from '@/core/classifier';
 
@@ -116,10 +117,13 @@ export const useClassificationStore = create<ClassificationStore>((set, get) => 
   },
 
   persist: async () => {
-    const { customRules, feedback } = get();
-    await Promise.all([
-      storage.set(STORAGE_KEYS.CUSTOM_RULES, customRules),
-      storage.set(STORAGE_KEYS.CATEGORY_FEEDBACK, feedback),
-    ]);
+    // 走持久化队列：写失败会挂到 usePersistStatus 上提示用户，而不是静默丢失
+    queuePersist('classification', async () => {
+      const { customRules, feedback } = get();
+      await Promise.all([
+        storage.set(STORAGE_KEYS.CUSTOM_RULES, customRules),
+        storage.set(STORAGE_KEYS.CATEGORY_FEEDBACK, feedback),
+      ]);
+    });
   },
 }));

@@ -24,7 +24,7 @@ import { useTransactionStore } from '@/stores/transaction-store';
 import { useClassificationStore } from '@/stores/classification-store';
 import { usePerTransactionLimits } from '@/hooks/usePerTransactionLimits';
 import { classifyTransaction } from '@/core/classifier';
-import { formatCurrency, formatDateShort } from '@/utils/format';
+import { formatCurrency, formatDateShort, parseAmountInput } from '@/utils/format';
 import { cn } from '@/utils/cn';
 import { CATEGORIES } from '@/types';
 import {
@@ -76,6 +76,8 @@ export default function Transactions() {
   const [month, setMonth] = useState('');
   const [sort, setSort] = useState<SortKey>('time-desc');
   const [keyword, setKeyword] = useState('');
+  const [minAmount, setMinAmount] = useState('');
+  const [maxAmount, setMaxAmount] = useState('');
 
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -102,9 +104,11 @@ export default function Transactions() {
         month: month || undefined,
         direction,
         keyword,
+        minAmount: parseAmountInput(minAmount),
+        maxAmount: parseAmountInput(maxAmount),
         sort,
       }),
-    [transactions, activeCategory, month, direction, keyword, sort],
+    [transactions, activeCategory, month, direction, keyword, minAmount, maxAmount, sort],
   );
 
   const summary = useMemo(
@@ -117,7 +121,7 @@ export default function Transactions() {
     setVisibleCount(PAGE_SIZE);
     setBatchMode(false);
     setBatchIds([]);
-  }, [activeCategory, month, direction, keyword, sort]);
+  }, [activeCategory, month, direction, keyword, sort, minAmount, maxAmount]);
 
   const visibleTransactions = useMemo(
     () => filteredTransactions.slice(0, visibleCount),
@@ -169,6 +173,8 @@ export default function Transactions() {
     setDirection('all');
     setMonth('');
     setKeyword('');
+    setMinAmount('');
+    setMaxAmount('');
     clearFilter();
   };
 
@@ -346,6 +352,52 @@ export default function Transactions() {
             placeholder="搜索交易对方或商品说明…"
             className="w-full rounded-lg border border-line bg-surface py-2 pl-9 pr-3 text-sm text-ink placeholder:text-ink-subtle focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
           />
+        </div>
+
+        {/* 金额区间：按绝对值比较，收入和支出一视同仁 */}
+        <div className="flex items-center gap-2">
+          <label className="sr-only" htmlFor="txn-min-amount">
+            最小金额
+          </label>
+          <input
+            id="txn-min-amount"
+            type="number"
+            inputMode="decimal"
+            min="0"
+            step="0.01"
+            value={minAmount}
+            onChange={(e) => setMinAmount(e.target.value)}
+            placeholder="最小金额"
+            className="tnum w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-subtle focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+          />
+          <span className="shrink-0 text-xs text-ink-subtle">至</span>
+          <label className="sr-only" htmlFor="txn-max-amount">
+            最大金额
+          </label>
+          <input
+            id="txn-max-amount"
+            type="number"
+            inputMode="decimal"
+            min="0"
+            step="0.01"
+            value={maxAmount}
+            onChange={(e) => setMaxAmount(e.target.value)}
+            placeholder="最大金额"
+            className="tnum w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-subtle focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+          />
+          {(minAmount || maxAmount) && (
+            <button
+              type="button"
+              onClick={() => {
+                setMinAmount('');
+                setMaxAmount('');
+              }}
+              aria-label="清除金额筛选"
+              className="shrink-0 rounded-lg px-2 py-2 text-ink-subtle hover:text-ink"
+            >
+              <X size={14} aria-hidden="true" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -556,7 +608,7 @@ export default function Transactions() {
 
       {/* 批量归类操作条 */}
       {batchMode && (
-        <div className="fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-40 px-4">
+        <div className="fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-40 px-4 md:bottom-4">
           <div className="mx-auto flex max-w-md items-center gap-3 rounded-xl border border-line bg-surface p-3 shadow-lg">
             <span className="min-w-0 flex-1 text-sm text-ink-muted">
               已选 <span className="tnum font-semibold text-ink">{batchIds.length}</span> 笔

@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useTransactionStore } from '@/stores/transaction-store';
 import { CATEGORIES, type Transaction } from '@/types';
 import { generateTransactionId } from '@/utils/id';
+import { getTodayLocal } from '@/utils/date';
 import { cn } from '@/utils/cn';
 import Modal from '@/components/ui/Modal';
 import CategoryIcon from '@/components/ui/CategoryIcon';
@@ -27,7 +28,8 @@ export default function AddTransactionModal({ onClose }: AddTransactionModalProp
   const [category, setCategory] = useState('');
   const [counterparty, setCounterparty] = useState('');
   const [description, setDescription] = useState('');
-  const [date, setDate] = useState(() => new Date().toISOString().substring(0, 10));
+  // 用本地时区算今天的日期：toISOString 是 UTC，凌晨记账会掉到前一天
+  const [date, setDate] = useState(() => getTodayLocal());
   const [time, setTime] = useState(() => {
     const now = new Date();
     return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;

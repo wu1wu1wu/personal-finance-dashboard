@@ -9,6 +9,7 @@ import AutoLedger from '@/plugins/AutoLedger';
 import type { CapturedTransaction } from '@/plugins/AutoLedger';
 import { parseCapturedTransaction } from '@/core/transaction-capture';
 import { resolveCaptureTiming } from '@/core/capture-timing';
+import { isDuplicateCapture } from '@/core/transaction-reconcile';
 import { classifyTransaction } from '@/core/classifier';
 import { generateTransactionId } from '@/utils/id';
 import { useTransactionStore } from '@/stores/transaction-store';
@@ -43,10 +44,14 @@ function processCapture(data: CapturedTransaction) {
   const timing = resolveCaptureTiming(data);
   const { transactionNo, transactionTime: timeStr, capturedAt } = timing;
   const store = useTransactionStore.getState();
-  if (store.transactions.some((t) => t.transactionNo === transactionNo)) return;
+
+  const id = generateTransactionId(timeStr, parsed.amount, transactionNo);
+  // 同一条通知可能被实时推送和队列重放各送一次；账单回填后单号会被换成账单单号，
+  // 所以除了单号还要按 id 判重，否则会重复记一笔。
+  if (isDuplicateCapture(store.transactions, id, transactionNo)) return;
 
   const txn: Transaction = {
-    id: generateTransactionId(timeStr, parsed.amount, transactionNo),
+    id,
     transactionTime: timeStr,
     transactionType: parsed.transactionType,
     counterparty: parsed.counterparty,
@@ -66,12 +71,14 @@ function processCapture(data: CapturedTransaction) {
   };
 
   const customRules = useClassificationStore.getState().customRules;
-  // 自定义读取规则可以直接指定分类，优先级高于关键词分类
+  // 自定义读取规则可以直接指定分类，优先级高于关键词分类。
+  // 来源记为 'rule' 而不是 'manual'：这是规则给的，不是用户改的，
+  // 导入账单时这条记录仍然要被回填（补商户名、换真实单号）。
   let category = parsed.category || classifyTransaction(txn, customRules);
   let categorySource: Transaction['categorySource'] = 'auto';
 
   if (parsed.category) {
-    categorySource = 'manual';
+    categorySource = 'rule';
   }
 
   // 关键词规则没命中时，用历史账单学到的「金额 + 时段」习惯给一个推测分类。

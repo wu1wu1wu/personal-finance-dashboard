@@ -6,6 +6,7 @@ import { create } from 'zustand';
 import type { Budget } from '@/types';
 import { STORAGE_KEYS, CATEGORIES } from '@/types';
 import { storage } from '@/storage/StorageAdapter';
+import { queuePersist } from '@/storage/persist-queue';
 
 interface BudgetStore {
   /** 分类预算列表（每条带month字段） */
@@ -183,10 +184,12 @@ export const useBudgetStore = create<BudgetStore>((set, get) => ({
   },
 
   persist: async () => {
-    const { budgets, totalBudgets } = get();
-    await Promise.all([
-      storage.set(STORAGE_KEYS.BUDGETS, budgets),
-      storage.set(STORAGE_KEYS.TOTAL_BUDGETS, totalBudgets),
-    ]);
+    queuePersist('budgets', async () => {
+      const { budgets, totalBudgets } = get();
+      await Promise.all([
+        storage.set(STORAGE_KEYS.BUDGETS, budgets),
+        storage.set(STORAGE_KEYS.TOTAL_BUDGETS, totalBudgets),
+      ]);
+    });
   },
 }));

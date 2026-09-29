@@ -75,6 +75,11 @@ export interface AutoLedgerPlugin {
   }>;
   /** 清空诊断历史（便于做一次干净的复现测试） */
   clearDebug(): Promise<void>;
+  /**
+   * 清空自动记账在原生侧保留的全部内容：待处理队列、已见指纹、诊断历史。
+   * 「清除所有数据」必须调它，否则队列里残留的短信/通知原文会在下次启动时被重新灌回交易库。
+   */
+  clearAllCaptures(): Promise<void>;
   /** 立即补扫通知栏里仍存在的通知；scanned=false 表示监听服务未连接 */
   scanActiveNotifications(): Promise<{ scanned: boolean }>;
   /** 监听捕获到的交易文本 */

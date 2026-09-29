@@ -22,24 +22,66 @@ interface TransactionDetailModalProps {
   onClose: () => void;
 }
 
+/** 编辑表单里的输入框样式 */
+const FIELD_CLASS =
+  'w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-subtle focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20';
+
+/** 编辑表单初值：时间转成 <input type="datetime-local"> 需要的格式 */
+function toEditForm(txn: Transaction) {
+  return {
+    amount: txn.amount === 0 ? '' : String(Math.abs(txn.amount)),
+    time: txn.transactionTime.replace(' ', 'T').substring(0, 16),
+    counterparty: txn.counterparty,
+    description: txn.description,
+    paymentMethod: txn.paymentMethod,
+  };
+}
+
+/** "2026-09-01T08:30" → "2026-09-01 08:30:00" */
+function normalizeEditTime(value: string): string {
+  const [date, time = '00:00'] = value.replace(' ', 'T').split('T');
+  const [hh = '00', mm = '00'] = time.split(':');
+  return `${date} ${hh.padStart(2, '0')}:${mm.padStart(2, '0')}:00`;
+}
+
 export default function TransactionDetailModal({ txn, onClose }: TransactionDetailModalProps) {
   const deleteTransaction = useTransactionStore((s) => s.deleteTransaction);
   const updateCategory = useTransactionStore((s) => s.updateCategory);
   const setTheme = useTransactionStore((s) => s.setTheme);
   const setCoverImage = useTransactionStore((s) => s.setCoverImage);
+  const updateTransaction = useTransactionStore((s) => s.updateTransaction);
   const transactions = useTransactionStore((s) => s.transactions);
   const recordFeedback = useClassificationStore((s) => s.recordFeedback);
   const [confirming, setConfirming] = useState(false);
 
   const [themeInput, setThemeInput] = useState(txn.theme);
   const [uploading, setUploading] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState(() => toEditForm(txn));
   const fileInputRef = useRef<HTMLInputElement>(null);
   const limitOf = usePerTransactionLimits();
 
-  // 切换交易时同步主题输入框
+  // 切换交易、或这笔交易被改动后，同步主题输入框与编辑表单
   useEffect(() => {
     setThemeInput(txn.theme);
-  }, [txn.id, txn.theme]);
+    setForm(toEditForm(txn));
+    setEditing(false);
+  }, [txn]);
+
+  const handleSaveEdit = () => {
+    const amount = Number.parseFloat(form.amount);
+    if (Number.isNaN(amount) || amount <= 0) return;
+
+    updateTransaction(txn.id, {
+      // 正数=支出，负数=收入：方向沿用原记录，金额用编辑后的
+      amount: txn.amount > 0 ? Math.abs(amount) : -Math.abs(amount),
+      transactionTime: normalizeEditTime(form.time),
+      counterparty: form.counterparty.trim(),
+      description: form.description.trim(),
+      paymentMethod: form.paymentMethod.trim(),
+    });
+    setEditing(false);
+  };
 
   const handlePickImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -102,9 +144,11 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
       value:
         txn.categorySource === 'manual'
           ? '手动指定'
-          : txn.categorySource === 'guessed'
-            ? '习惯推测'
-            : '自动识别',
+          : txn.categorySource === 'rule'
+            ? '自定义规则'
+            : txn.categorySource === 'guessed'
+              ? '习惯推测'
+              : '自动识别',
     },
     { label: '周期交易', value: txn.isPeriodic ? '是' : '否' },
     { label: '导入时间', value: txn.createdAt ? new Date(txn.createdAt).toLocaleString('zh-CN') : '—' },
@@ -288,28 +332,119 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
           </div>
         </div>
 
-        {/* 明细 */}
-        <dl className="space-y-2.5">
-          {rows.map((row) => (
-            <div key={row.label} className="flex items-start justify-between gap-4">
-              <dt className="shrink-0 text-sm text-ink-muted">{row.label}</dt>
-              <dd className="text-right text-sm text-ink break-all">{row.value}</dd>
-            </div>
-          ))}
-
-          {txn.tags.length > 0 && (
-            <div className="flex items-start justify-between gap-4">
-              <dt className="shrink-0 text-sm text-ink-muted">标签</dt>
-              <dd className="flex flex-wrap justify-end gap-1">
-                {txn.tags.map((tag) => (
-                  <span key={tag} className="rounded-full bg-canvas px-2 py-0.5 text-xs text-ink-muted">
-                    {tag}
-                  </span>
-                ))}
-              </dd>
-            </div>
+        {/* 明细（可编辑：金额/时间/对方/说明/支付方式） */}
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-ink-subtle">明细</p>
+          {!editing && (
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="text-xs font-medium text-brand hover:underline"
+            >
+              编辑
+            </button>
           )}
-        </dl>
+        </div>
+
+        {editing ? (
+          <div className="space-y-2.5">
+            <div className="grid grid-cols-2 gap-2.5">
+              <label className="block">
+                <span className="mb-1 block text-xs text-ink-subtle">金额</span>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.01"
+                  value={form.amount}
+                  onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                  className={FIELD_CLASS}
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs text-ink-subtle">交易时间</span>
+                <input
+                  type="datetime-local"
+                  value={form.time}
+                  onChange={(e) => setForm({ ...form, time: e.target.value })}
+                  className={FIELD_CLASS}
+                />
+              </label>
+            </div>
+            <label className="block">
+              <span className="mb-1 block text-xs text-ink-subtle">交易对方</span>
+              <input
+                type="text"
+                value={form.counterparty}
+                onChange={(e) => setForm({ ...form, counterparty: e.target.value })}
+                className={FIELD_CLASS}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs text-ink-subtle">商品说明</span>
+              <input
+                type="text"
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                className={FIELD_CLASS}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs text-ink-subtle">支付方式</span>
+              <input
+                type="text"
+                value={form.paymentMethod}
+                onChange={(e) => setForm({ ...form, paymentMethod: e.target.value })}
+                className={FIELD_CLASS}
+              />
+            </label>
+            <p className="text-[11px] text-ink-subtle">
+              编辑过的记录不会再被后续导入的账单覆盖。
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleSaveEdit}
+                disabled={!form.amount || Number.parseFloat(form.amount) <= 0}
+                className="flex-1 rounded-lg bg-brand py-2 text-sm font-medium text-white transition-colors hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                保存修改
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setForm(toEditForm(txn));
+                  setEditing(false);
+                }}
+                className="flex-1 rounded-lg bg-canvas py-2 text-sm text-ink-muted transition-colors hover:text-ink"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        ) : (
+          <dl className="space-y-2.5">
+            {rows.map((row) => (
+              <div key={row.label} className="flex items-start justify-between gap-4">
+                <dt className="shrink-0 text-sm text-ink-muted">{row.label}</dt>
+                <dd className="text-right text-sm text-ink break-all">{row.value}</dd>
+              </div>
+            ))}
+
+            {txn.tags.length > 0 && (
+              <div className="flex items-start justify-between gap-4">
+                <dt className="shrink-0 text-sm text-ink-muted">标签</dt>
+                <dd className="flex flex-wrap justify-end gap-1">
+                  {txn.tags.map((tag) => (
+                    <span key={tag} className="rounded-full bg-canvas px-2 py-0.5 text-xs text-ink-muted">
+                      {tag}
+                    </span>
+                  ))}
+                </dd>
+              </div>
+            )}
+          </dl>
+        )}
       </div>
     </Modal>
   );

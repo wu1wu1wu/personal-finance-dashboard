@@ -18,7 +18,8 @@ import {
   detectPeriodicTransactions,
   calcPeriodicBreakdown,
 } from '@/core/periodic-engine';
-import { getCurrentMonth, getRecentMonths } from '@/utils/date';
+import { getCurrentMonth, buildMonthOptions } from '@/utils/date';
+import { useBudgetStore } from '@/stores/budget-store';
 import { formatAmount, formatCurrency } from '@/utils/format';
 import { isConsumption } from '@/core/transaction-query';
 import { cn } from '@/utils/cn';
@@ -41,8 +42,9 @@ const VIEW_OPTIONS: { value: ViewMode; label: string; icon: typeof ChartPie }[] 
 ];
 
 export default function Dashboard() {
-  const { transactions, loaded, loadFromStorage, togglePeriodic, setTheme } =
+  const { transactions, loaded, loadFromStorage, togglePeriodicBatch, setTheme } =
     useTransactionStore();
+  const { totalBudgets, loadFromStorage: loadBudgets } = useBudgetStore();
   const navigate = useNavigate();
 
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
@@ -50,15 +52,18 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadFromStorage();
-  }, [loadFromStorage]);
+    void loadBudgets();
+  }, [loadFromStorage, loadBudgets]);
 
-  // 最近 6 个月 + 有数据的月份
-  const months = useMemo(() => {
-    const recent = getRecentMonths(6);
-    const dataMonths = new Set(transactions.map((t) => t.transactionTime.substring(0, 7)));
-    recent.forEach((m) => dataMonths.add(m));
-    return [...dataMonths].filter(Boolean).sort();
-  }, [transactions]);
+  // 月份选项：最近 6 个月 ∪ 有数据的月份 ∪ 有预算的月份 ∪ 下个月，倒序（最新在前）
+  const months = useMemo(
+    () =>
+      buildMonthOptions(
+        transactions.map((t) => t.transactionTime.substring(0, 7)),
+        Object.keys(totalBudgets),
+      ),
+    [transactions, totalBudgets],
+  );
 
   const monthTxns = useMemo(
     () =>
@@ -108,15 +113,16 @@ export default function Dashboard() {
   );
 
   const handleUnmarkPeriodic = (counterparty: string, amount: number) => {
-    for (const txn of transactions) {
-      if (
-        txn.isPeriodic &&
-        txn.counterparty === counterparty &&
-        Math.abs(txn.amount - amount) <= 1
-      ) {
-        togglePeriodic(txn.id);
-      }
-    }
+    // 一次批量写回：逐条 toggle 会触发 N 次全量序列化
+    const ids = transactions
+      .filter(
+        (txn) =>
+          txn.isPeriodic &&
+          txn.counterparty === counterparty &&
+          Math.abs(txn.amount - amount) <= 1,
+      )
+      .map((txn) => txn.id);
+    togglePeriodicBatch(ids);
   };
 
   const isLoading = !loaded;
@@ -278,7 +284,7 @@ export default function Dashboard() {
                   <TransactionRow
                     key={txn.id}
                     txn={txn}
-                    onClick={() => navigate(`/transactions?category=${encodeURIComponent(txn.category)}`)}
+                    onClick={() => navigate(`/transactions?id=${encodeURIComponent(txn.id)}`)}
                   />
                 ))}
               </ul>

@@ -39,6 +39,12 @@ const EXPENSE_KEYWORDS = ['支出', '消费', '支付', '付款', '扣款', '缴
 const INCOME_KEYWORDS = ['收入', '收款', '到账', '入账', '红包', '退款', '转入'];
 
 /**
+ * 这些词里的「收款」只说明钱给了谁，不说明方向。
+ * 「付款成功 ¥23.00 收款方：XX」是支出，早期实现按包含「收款」判成收入，整笔符号反了。
+ */
+const INCOME_FALSE_POSITIVES = ['收款方', '收款人', '付款给'];
+
+/**
  * 反向语义：出现这些词说明「钱还没动」，不能记成已完成的交易。
  * 之前「您已产生1个待支付账单共1100元」会被记成一笔 1100 元的支出。
  */
@@ -216,17 +222,23 @@ export function parseCapturedTransaction(
   // 内置兜底
   if (hasNegativeContext(cleaned)) return null;
 
-  const isIncome = INCOME_KEYWORDS.some((k) => cleaned.includes(k));
-  const isExpense = EXPENSE_KEYWORDS.some((k) => cleaned.toLowerCase().includes(k.toLowerCase()));
-  if (!isIncome && !isExpense) return null;
+  // 方向判定：支出优先。
+  // 付款通知常带「收款方」这类字段，先剔除它们再找收入信号，避免方向判反。
+  const incomeHaystack = INCOME_FALSE_POSITIVES.reduce(
+    (text, word) => text.split(word).join(''),
+    cleaned,
+  );
+  const isExpense = EXPENSE_KEYWORDS.some((k) => cleaned.toLowerCase().includes(k));
+  const isIncome = INCOME_KEYWORDS.some((k) => incomeHaystack.includes(k));
+  if (!isExpense && !isIncome) return null;
 
   const amount = extractAmount(cleaned);
   if (amount == null) return null;
 
   return {
-    amount: isIncome ? -amount : amount,
+    amount: isExpense ? amount : -amount,
     counterparty: extractCounterparty(cleaned),
-    transactionType: isIncome ? '收入' : '支出',
+    transactionType: isExpense ? '支出' : '收入',
     description: cleaned,
   };
 }

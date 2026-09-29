@@ -70,4 +70,32 @@ describe('maskTransaction', () => {
     expect(masked.counterparty).toBe('************7890')
     expect(masked.transactionNo).toBe('1234****3456')
   })
+
+  // 自动捕获的 description 是短信/通知原文，里面可能有卡号、手机号，
+  // 导出备份时同样必须脱敏，否则"脱敏"只做了半截
+  it('商品说明（短信原文）也要脱敏', () => {
+    const txn: Transaction = {
+      id: '1',
+      transactionTime: '2026-07-05 14:30:00',
+      transactionType: '支出',
+      counterparty: '招商银行',
+      description: '您尾号6222021234567890卡消费100元，联系电话13812345678',
+      amount: 100,
+      paymentStatus: '',
+      transactionNo: '',
+      paymentMethod: '',
+      category: '',
+      categorySource: 'auto',
+      isPeriodic: false,
+      tags: [],
+      createdAt: '',
+      coverImage: '',
+      theme: '',
+      origin: 'auto',
+    }
+
+    const masked = maskTransaction(txn)
+
+    expect(masked.description).toBe('您尾号************7890卡消费100元，联系电话138****5678')
+  })
 })

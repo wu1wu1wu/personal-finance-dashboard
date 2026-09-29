@@ -76,6 +76,18 @@ export function parseAmount(raw: string): number {
 }
 
 /**
+ * 解析筛选框里的金额输入
+ * 空串或非法输入返回 undefined（= 不构成筛选条件），负数取绝对值
+ */
+export function parseAmountInput(raw: string): number | undefined {
+  const trimmed = raw.trim();
+  if (!trimmed) return undefined;
+  const value = Number(trimmed);
+  if (!Number.isFinite(value)) return undefined;
+  return Math.abs(value);
+}
+
+/**
  * 格式化日期为中文显示
  * "2026-07-05 14:30:00" → "7月5日 14:30"
  */

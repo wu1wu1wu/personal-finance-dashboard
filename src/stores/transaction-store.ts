@@ -6,6 +6,8 @@ import { create } from 'zustand';
 import type { Transaction, FilterOptions } from '@/types';
 import { STORAGE_KEYS } from '@/types';
 import { storage } from '@/storage/StorageAdapter';
+import { queuePersist } from '@/storage/persist-queue';
+import { coverKey, hydrateCovers, migrateInlineCovers, saveCover, stripCovers } from '@/storage/cover-store';
 import { classifyTransaction } from '@/core/classifier';
 import { detectPeriodicTransactions, markPeriodicTransactions } from '@/core/periodic-engine';
 
@@ -31,12 +33,24 @@ interface TransactionStore {
   addTransaction: (txn: Transaction) => void;
   /** 更新单条交易的分类 */
   updateCategory: (id: string, category: string) => void;
+  /** 编辑单条交易的内容（金额/时间/对方/描述/主题）；编辑后标记 userEdited，不再被账单回填覆盖 */
+  updateTransaction: (
+    id: string,
+    patch: Partial<
+      Pick<
+        Transaction,
+        'amount' | 'transactionTime' | 'counterparty' | 'description' | 'theme' | 'paymentMethod'
+      >
+    >,
+  ) => void;
   /** 批量更新分类（待确认收件箱多选归类） */
   updateCategoryBatch: (ids: string[], category: string) => void;
   /** 按各自的分类批量写回（重新识别待确认记录用） */
   applyCategories: (updates: { id: string; category: string }[]) => number;
   /** 切换周期性标记 */
   togglePeriodic: (id: string) => void;
+  /** 批量切换周期性标记（看板取消周期订阅时一次写完，避免逐条全量落盘） */
+  togglePeriodicBatch: (ids: string[]) => void;
   /** 添加标签 */
   addTag: (id: string, tag: string) => void;
   /** 移除标签 */
@@ -116,6 +130,12 @@ export const useTransactionStore = create<TransactionStore>((set, get) => ({
         }
       }
 
+      // 老数据分不清「用户手动改的分类」和「规则指定的分类」（当时都写成 manual），
+      // 保守当作用户改过，宁可不回填也不要覆盖用户数据。
+      if (next.origin === 'auto' && next.categorySource === 'manual' && next.userEdited === undefined) {
+        next = { ...next, userEdited: true };
+      }
+
       // 补齐老数据的 theme / coverImage，避免读取时是 undefined
       if (typeof next.theme !== 'string') {
         next = { ...next, theme: '' };
@@ -131,7 +151,16 @@ export const useTransactionStore = create<TransactionStore>((set, get) => ({
       console.log(`[迁移] 已迁移 ${changed} 条记录`);
       await storage.set(STORAGE_KEYS.TRANSACTIONS, migrated);
     }
-    set({ transactions: migrated, loaded: true });
+
+    // 封面图从主记录里拆出来单独存：先把老数据的内嵌图片搬走，再读回独立键上的图片。
+    // 内存里依旧挂着 coverImage，UI 与导出逻辑都不用改。
+    const detached = await migrateInlineCovers(migrated);
+    if (detached !== migrated) {
+      await storage.set(STORAGE_KEYS.TRANSACTIONS, stripCovers(detached));
+    }
+    const hydrated = await hydrateCovers(detached);
+
+    set({ transactions: hydrated, loaded: true });
     get().autoMarkPeriodic();
   },
 
@@ -148,6 +177,8 @@ export const useTransactionStore = create<TransactionStore>((set, get) => ({
   },
 
   addTransaction: (txn) => {
+    // 通知/短信可能被实时推送和队列重放各送一次，同 id 不再重复入账
+    if (get().transactions.some((t) => t.id === txn.id)) return;
     set((state) => ({
       transactions: [txn, ...state.transactions],
     }));
@@ -159,7 +190,7 @@ export const useTransactionStore = create<TransactionStore>((set, get) => ({
     const idSet = new Set(ids);
     set((state) => ({
       transactions: state.transactions.map((t) =>
-        idSet.has(t.id) ? { ...t, category, categorySource: 'manual' } : t,
+        idSet.has(t.id) ? { ...t, category, categorySource: 'manual', userEdited: true } : t,
       ),
     }));
     get().persist();
@@ -200,7 +231,19 @@ export const useTransactionStore = create<TransactionStore>((set, get) => ({
   updateCategory: (id, category) => {
     set((state) => ({
       transactions: state.transactions.map((t) =>
-        t.id === id ? { ...t, category, categorySource: 'manual' as const } : t,
+        t.id === id
+          ? { ...t, category, categorySource: 'manual' as const, userEdited: true }
+          : t,
+      ),
+    }));
+    get().persist();
+  },
+
+  updateTransaction: (id, patch) => {
+    set((state) => ({
+      transactions: state.transactions.map((t) =>
+        // id 不重算：去重、封面键、标签都挂在 id 上，改了会让这些都错位
+        t.id === id ? { ...t, ...patch, userEdited: true } : t,
       ),
     }));
     get().persist();
@@ -210,6 +253,17 @@ export const useTransactionStore = create<TransactionStore>((set, get) => ({
     set((state) => ({
       transactions: state.transactions.map((t) =>
         t.id === id ? { ...t, isPeriodic: !t.isPeriodic } : t,
+      ),
+    }));
+    get().persist();
+  },
+
+  togglePeriodicBatch: (ids) => {
+    if (ids.length === 0) return;
+    const idSet = new Set(ids);
+    set((state) => ({
+      transactions: state.transactions.map((t) =>
+        idSet.has(t.id) ? { ...t, isPeriodic: !t.isPeriodic } : t,
       ),
     }));
     get().persist();
@@ -239,6 +293,8 @@ export const useTransactionStore = create<TransactionStore>((set, get) => ({
     set((state) => ({
       transactions: state.transactions.filter((t) => t.id !== id),
     }));
+    // 封面图是独立键，删记录时一起清掉，避免残留占空间
+    void storage.remove(coverKey(id));
     get().persist();
   },
 
@@ -283,6 +339,8 @@ export const useTransactionStore = create<TransactionStore>((set, get) => ({
         t.id === id ? { ...t, coverImage } : t,
       ),
     }));
+    // 图片单独落盘，主数组里不留 base64
+    void saveCover(id, coverImage);
     get().persist();
   },
 
@@ -294,8 +352,11 @@ export const useTransactionStore = create<TransactionStore>((set, get) => ({
   },
 
   persist: async () => {
-    const { transactions } = get();
-    await storage.set(STORAGE_KEYS.TRANSACTIONS, transactions);
+    // 走持久化队列：写失败会挂到 usePersistStatus 上提示用户，而不是静默丢失。
+    // 封面图不在主记录里（见 cover-store），写盘前统一剥离，避免每次改动都序列化几 MB 图片。
+    queuePersist('transactions', async () => {
+      await storage.set(STORAGE_KEYS.TRANSACTIONS, stripCovers(get().transactions));
+    });
   },
 
   autoMarkPeriodic: () => {

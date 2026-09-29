@@ -36,6 +36,51 @@ export function getRecentMonths(count: number): string[] {
 }
 
 /**
+ * 今天的日期键 "2026-09-01"（本地时区）
+ *
+ * 不能用 toISOString().substring(0, 10)：那是 UTC 日期，
+ * 东八区凌晨 0-8 点记账会掉到前一天，月初还会掉到上个月。
+ */
+export function getTodayLocal(now = new Date()): string {
+  const y = now.getFullYear();
+  const m = (now.getMonth() + 1).toString().padStart(2, '0');
+  const d = now.getDate().toString().padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/** 月份键是否为合法的 "yyyy-MM" */
+function isValidMonthKey(key: string): boolean {
+  return /^\d{4}-(0[1-9]|1[0-2])$/.test(key);
+}
+
+/**
+ * 组装月份选择器的选项：最近 6 个月 ∪ 有数据的月份 ∪ 有预算的月份 ∪ 下个月。
+ *
+ * - 下个月要留着：预算是可以提前给下个月设的
+ * - 有数据/有预算的老月份也要留着：否则翻不回去看
+ * - 统一倒序（最新在前），调用方直接渲染即可
+ */
+export function buildMonthOptions(
+  monthsWithData: Iterable<string> = [],
+  monthsWithBudget: Iterable<string> = [],
+  now = new Date(),
+): string[] {
+  const months = new Set<string>();
+
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.add(`${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}`);
+  }
+  const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  months.add(`${next.getFullYear()}-${(next.getMonth() + 1).toString().padStart(2, '0')}`);
+
+  for (const key of monthsWithData) if (isValidMonthKey(key)) months.add(key);
+  for (const key of monthsWithBudget) if (isValidMonthKey(key)) months.add(key);
+
+  return [...months].sort().reverse();
+}
+
+/**
  * 获取某月的所有日期键列表
  * @param monthKey "2026-07"
  * @returns ["2026-07-01", "2026-07-02", ..., "2026-07-31"]

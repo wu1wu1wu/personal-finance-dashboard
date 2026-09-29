@@ -7,9 +7,10 @@ import { CircleAlert, CircleCheck, CloudUpload, Info, LoaderCircle } from 'lucid
 import { parseWechatCSV, isWechatCSVFile } from '@/core/csv-parser';
 import { maskTransactions } from '@/core/data-masker';
 import { classifyTransactions } from '@/core/classifier';
-import { reconcileImportedBills } from '@/core/transaction-reconcile';
+import { reconcileImportedBills, isAlreadyImported } from '@/core/transaction-reconcile';
 import { useTransactionStore } from '@/stores/transaction-store';
 import { useClassificationStore } from '@/stores/classification-store';
+import { useSettingsStore } from '@/stores/settings-store';
 import { cn } from '@/utils/cn';
 
 interface UploadResult {
@@ -67,18 +68,26 @@ export default function UploadZone() {
           return;
         }
 
-        const masked = maskTransactions(parseResult.transactions);
+        // 脱敏按设置走（默认开）：关掉后保留账单里的原始卡号/单号，方便对账
+        await useSettingsStore.getState().loadFromStorage();
+        const desensitize = useSettingsStore.getState().settings.importDesensitize;
+        const masked = desensitize
+          ? maskTransactions(parseResult.transactions)
+          : parseResult.transactions;
 
         // 自动分类（加载规则 → 批量分类）
         await loadRules();
         const allRules = getAllRules();
         const classified = classifyTransactions(masked, allRules);
 
-        // 写入 Store：先按 id 去重，再把账单补全到已有的自动记账占位记录上，
+        // 写入 Store：先按 id / 账单 id / 交易单号去重，再把账单补全到已有的自动记账占位记录上，
         // 这样能保留原有的封面和标签，并重新分类。
+        // 注意不能只看 id：被回填过的记录保留的是占位 id，账单 id 记在 billId 上，
+        // 否则同一份账单再导一次会让支出翻倍。
         const store = useTransactionStore.getState();
-        const existingIds = getExistingIds();
-        const fresh = classified.classified.filter((t) => !existingIds.has(t.id));
+        const fresh = classified.classified.filter(
+          (t) => !isAlreadyImported(store.transactions, t),
+        );
         const duplicateByImport = classified.classified.length - fresh.length;
         const reconcile = reconcileImportedBills(store.transactions, fresh, allRules);
         store.applyReconcile(reconcile.transactions);

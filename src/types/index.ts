@@ -24,10 +24,18 @@ export interface Transaction {
   paymentMethod: string;
   /** 分类 */
   category: string;
-  /** 分类来源：自动识别 / 手动指定 / 习惯推测 */
-  categorySource: 'auto' | 'manual' | 'guessed';
+  /** 分类来源：自动识别 / 规则指定 / 手动指定 / 习惯推测 */
+  categorySource: 'auto' | 'rule' | 'manual' | 'guessed';
+  /** 用户是否手动编辑过这条记录（编辑过就不再被账单回填覆盖） */
+  userEdited?: boolean;
   /** 记录来源：账单导入 / 手动添加 / 自动捕获（通知或短信） */
   origin: 'import' | 'manual' | 'auto';
+  /**
+   * 账单原始 id（回填时写入）。
+   * 回填会保留占位记录的 id（封面、标签不丢），所以账单自己的 id 必须另存，
+   * 否则再次导入同一份账单时查不到这条记录，会重复入账。
+   */
+  billId?: string;
   /** 是否周期性交易 */
   isPeriodic: boolean;
   /** 用户自定义标签 */
@@ -114,16 +122,6 @@ export interface FilterOptions {
   maxAmount?: number;
   /** 搜索关键词 */
   keyword?: string;
-}
-
-/** 应用设置 */
-export interface AppSettings {
-  /** 总月度预算 */
-  totalBudget: number;
-  /** 是否脱敏 */
-  desensitize: boolean;
-  /** 默认分类 */
-  defaultCategory: string;
 }
 
 /** 自动记账：用户自定义的消息读取规则 */

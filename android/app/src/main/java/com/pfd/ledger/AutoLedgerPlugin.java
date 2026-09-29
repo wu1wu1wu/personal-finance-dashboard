@@ -25,9 +25,11 @@ import org.json.JSONObject;
 @CapacitorPlugin(
     name = "AutoLedger",
     permissions = {
+        // 只保留 RECEIVE_SMS：短信是靠广播体解析的，从来不需要 READ_SMS，
+        // 而多申请短信读取权限会触发 Google Play 的短信权限政策。
         @Permission(
             alias = "sms",
-            strings = { Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS }
+            strings = { Manifest.permission.RECEIVE_SMS }
         )
     }
 )
@@ -326,6 +328,24 @@ public class AutoLedgerPlugin extends Plugin {
     @PluginMethod
     public void clearDebug(PluginCall call) {
         getContext().getSharedPreferences(DEBUG_PREFS, Context.MODE_PRIVATE)
+                .edit().clear().apply();
+        call.resolve();
+    }
+
+    /**
+     * 清空自动记账在原生侧保留的全部内容：待处理队列、已见指纹、诊断历史。
+     *
+     * 「清除所有数据」必须调用它：这些内容不在 Web 端的 CapacitorStorage 里，
+     * 只清 Web 侧的话，残留的短信/通知原文会在下次启动时被重新灌回交易库。
+     */
+    @PluginMethod
+    public void clearAllCaptures(PluginCall call) {
+        Context context = getContext();
+        context.getSharedPreferences(QUEUE_PREFS, Context.MODE_PRIVATE)
+                .edit().clear().apply();
+        context.getSharedPreferences(SEEN_PREFS, Context.MODE_PRIVATE)
+                .edit().clear().apply();
+        context.getSharedPreferences(DEBUG_PREFS, Context.MODE_PRIVATE)
                 .edit().clear().apply();
         call.resolve();
     }
