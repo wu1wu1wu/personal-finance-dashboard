@@ -73,7 +73,7 @@ export default function Cleanup() {
       <div className="flex items-center gap-3">
         <button
           type="button"
-          onClick={() => navigate('/settings')}
+          onClick={() => navigate('/settings/data')}
           aria-label="返回设置"
           className="-ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-canvas hover:text-ink"
         >

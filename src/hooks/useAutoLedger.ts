@@ -8,6 +8,7 @@ import { Capacitor } from '@capacitor/core';
 import AutoLedger from '@/plugins/AutoLedger';
 import type { CapturedTransaction } from '@/plugins/AutoLedger';
 import { parseCapturedTransaction } from '@/core/transaction-capture';
+import { resolveCaptureTiming } from '@/core/capture-timing';
 import { classifyTransaction } from '@/core/classifier';
 import { generateTransactionId } from '@/utils/id';
 import { useTransactionStore } from '@/stores/transaction-store';
@@ -29,13 +30,6 @@ function getHabitModel(transactions: Transaction[]): HabitModel {
   return cachedModel;
 }
 
-/** 把时间戳格式化为本地 "yyyy-MM-dd HH:mm:ss" */
-function formatDateTime(ms: number): string {
-  const d = new Date(ms);
-  const pad = (n: number) => n.toString().padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
-
 /** 解析并写入一条捕获到的交易 */
 function processCapture(data: CapturedTransaction) {
   const { rules, settings } = useCaptureRuleStore.getState();
@@ -46,14 +40,11 @@ function processCapture(data: CapturedTransaction) {
   });
   if (!parsed) return;
 
-  // 同一笔会同时走「实时推送」和「持久队列」两条路，按来源时间戳去重
-  const transactionNo = `auto-${data.timestamp}`;
+  const timing = resolveCaptureTiming(data);
+  const { transactionNo, transactionTime: timeStr, capturedAt } = timing;
   const store = useTransactionStore.getState();
   if (store.transactions.some((t) => t.transactionNo === transactionNo)) return;
 
-  // 必须用原生捕获时刻（= 支付时刻）而不是「当前处理时刻」：
-  // App 在后台时，通知可能隔几小时才被处理，用处理时刻会让账单回填的时间匹配失准。
-  const timeStr = formatDateTime(data.timestamp);
   const txn: Transaction = {
     id: generateTransactionId(timeStr, parsed.amount, transactionNo),
     transactionTime: timeStr,
@@ -69,7 +60,7 @@ function processCapture(data: CapturedTransaction) {
     origin: 'auto',
     isPeriodic: false,
     tags: [],
-    createdAt: new Date().toISOString(),
+    createdAt: new Date(capturedAt).toISOString(),
     coverImage: '',
     theme: '',
   };

@@ -4,6 +4,8 @@ import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.net.Uri;
+import android.os.PowerManager;
 import android.provider.Settings;
 
 import com.getcapacitor.JSArray;
@@ -45,8 +47,14 @@ public class AutoLedgerPlugin extends Plugin {
     private static final String DEBUG_LAST_PACKAGE = "last_package";
     private static final String DEBUG_LAST_TIME = "last_time";
     private static final String DEBUG_LAST_LIKELY = "last_likely";
+    private static final String DEBUG_LAST_CONNECTED_AT = "last_connected_at";
+    private static final String DEBUG_LAST_NOTIFICATION_AT = "last_notification_at";
+    private static final String DEBUG_LAST_TRANSACTION_AT = "last_transaction_at";
+    private static final String DEBUG_FILTERED_COUNT = "filtered_count";
+    private static final String DEBUG_WECHAT_LAST_AT = "wechat_last_at";
     private static final String DEBUG_RECENT = "recent";
     private static final int DEBUG_RECENT_MAX = 50;
+    private static final String WECHAT_PACKAGE = "com.tencent.mm";
 
     /** 已处理过的通知指纹（通知 key|postTime），用于「实时投递 + 补偿扫描」去重 */
     private static final String SEEN_PREFS = "pfd_autoledger_seen";
@@ -75,24 +83,22 @@ public class AutoLedgerPlugin extends Plugin {
      * 否则同一笔会被当成两条记录（Web 层用 timestamp 生成去重 ID）。
      */
     public void emitCapturedText(String source, String text, String packageName, long timestamp) {
+        emitCapturedText(source, text, packageName, "", timestamp, System.currentTimeMillis());
+    }
+
+    /** 把捕获到的原始文本连同事件时间和通知指纹发给 Web 层。 */
+    public void emitCapturedText(String source, String text, String packageName,
+                                 String fingerprint, long eventTime, long capturedAt) {
         if (text == null || text.trim().isEmpty()) return;
         JSObject data = new JSObject();
         data.put("source", source); // "sms" / "notification" / "active"
         data.put("text", text);
         // 来源包名交给 Web 层，用于「按来源 App 限定」的自定义读取规则
         data.put("package", packageName == null ? "" : packageName);
-        data.put("timestamp", timestamp);
+        data.put("fingerprint", fingerprint == null ? "" : fingerprint);
+        data.put("timestamp", eventTime);
+        data.put("capturedAt", capturedAt);
         notifyListeners("transactionCaptured", data, true);
-    }
-
-    /** 静态入口：短信等无包名来源 */
-    public static void capture(Context context, String source, String text) {
-        capture(context, source, text, "");
-    }
-
-    /** 静态入口：无指纹（短信广播不会重复投递） */
-    public static void capture(Context context, String source, String text, String packageName) {
-        capture(context, source, text, packageName, "");
     }
 
     /**
@@ -100,66 +106,72 @@ public class AutoLedgerPlugin extends Plugin {
      *
      * @param fingerprint 通知指纹（通知 key|postTime）。同一条通知被「实时投递」和
      *                    「补偿扫描」各拿一次时，靠它去重，避免同一笔记两次。
+     * @param eventTime 通知投递时间或短信网络时间；不能使用 App 扫描时间代替。
      */
     public static void capture(Context context, String source, String text,
-                               String packageName, String fingerprint) {
+                               String packageName, String fingerprint, long eventTime) {
         String pkg = packageName == null ? "" : packageName;
         String raw = text == null ? "" : text.trim();
-        long now = System.currentTimeMillis();
+        long capturedAt = System.currentTimeMillis();
+        long effectiveEventTime = eventTime > 0 ? eventTime : capturedAt;
 
-        // 0. 同一条通知已在别处处理过 → 直接跳过（连诊断都不重复记）
-        if (fingerprint != null && !fingerprint.isEmpty() && seenBefore(context, fingerprint, now)) {
+        long lastNotificationAt = "notification".equals(source) || "active".equals(source)
+                ? effectiveEventTime : 0;
+        if (lastNotificationAt > 0) {
+            recordNotificationSeen(context, pkg, lastNotificationAt);
+        }
+
+        boolean likely = AutoLedgerFilter.looksLikeTransaction(raw, pkg);
+        if (!likely) {
+            recordFiltered(context);
             return;
         }
 
-        // 1. 抽不出文本的通知也要留痕，否则微信那条会「静默消失」，无从排查
-        if (raw.isEmpty()) {
-            recordDebug(context, source, "(空文本)", pkg, now, false);
+        // 同一条通知已在别处处理过 → 直接跳过
+        if (fingerprint != null && !fingerprint.isEmpty()
+                && seenBefore(context, fingerprint, capturedAt)) {
             return;
         }
 
-        boolean likely = looksLikeTransaction(raw);
-
-        // 2. 疑似交易的落盘到持久队列（App 被杀 / 后台也能补记）
+        // 疑似交易落盘到持久队列（App 被杀 / 后台也能补记）
         if (likely) {
-            enqueueCapture(context, source, raw, pkg, now);
+            enqueueCapture(context, source, raw, pkg, fingerprint, effectiveEventTime, capturedAt);
         }
 
-        // 3. 记录诊断信息（最近若干条 + 最后一次）——全量记录，否则无从排查
-        recordDebug(context, source, raw, pkg, now, likely);
+        recordDebug(
+                context,
+                source,
+                raw,
+                pkg,
+                fingerprint,
+                effectiveEventTime,
+                capturedAt);
 
-        // 4. 只有疑似交易的才实时推给 Web 层，避免聊天里的金额被误记账
-        if (likely) {
-            AutoLedgerPlugin p = instance;
-            if (p != null) {
-                // 与入队共用同一个 now，保证 Web 层能把两者去重
-                p.emitCapturedText(source, raw, pkg, now);
-            }
+        AutoLedgerPlugin p = instance;
+        if (p != null) {
+            // 与入队共用事件时间和指纹，保证 Web 层能把两者去重
+            p.emitCapturedText(source, raw, pkg, fingerprint, effectiveEventTime, capturedAt);
         }
     }
 
     /**
-     * 粗筛：文本里既有数字、又有金额/交易字样才认为可能是交易。
-     * 目的是过滤掉无关通知（音视频、下载、系统提示等），不追求精确。
+     * 已处理过的通知指纹（通知 key|postTime），用于「实时投递 + 补偿扫描」去重。
      */
-    private static boolean looksLikeTransaction(String text) {
-        if (text == null) return false;
-        boolean hasDigit = false;
-        for (int i = 0; i < text.length(); i++) {
-            if (Character.isDigit(text.charAt(i))) {
-                hasDigit = true;
-                break;
-            }
+    private static void recordNotificationSeen(Context context, String pkg, long eventTime) {
+        long seenAt = eventTime > 0 ? eventTime : System.currentTimeMillis();
+        SharedPreferences.Editor editor = context
+                .getSharedPreferences(DEBUG_PREFS, Context.MODE_PRIVATE)
+                .edit()
+                .putLong(DEBUG_LAST_NOTIFICATION_AT, seenAt);
+        if (WECHAT_PACKAGE.equals(pkg)) {
+            editor.putLong(DEBUG_WECHAT_LAST_AT, seenAt);
         }
-        if (!hasDigit) return false;
-        String[] hints = {
-            "¥", "￥", "元", "人民币", "支付", "付款", "消费", "扣款", "支出",
-            "收入", "到账", "转账", "退款", "收款", "余额", "账单", "交易"
-        };
-        for (String h : hints) {
-            if (text.contains(h)) return true;
-        }
-        return false;
+        editor.apply();
+    }
+
+    private static void recordFiltered(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences(DEBUG_PREFS, Context.MODE_PRIVATE);
+        prefs.edit().putInt(DEBUG_FILTERED_COUNT, prefs.getInt(DEBUG_FILTERED_COUNT, 0) + 1).apply();
     }
 
     /**
@@ -168,7 +180,8 @@ public class AutoLedgerPlugin extends Plugin {
      * 导致真正关心的那条被挤出可视范围。
      */
     private static void recordDebug(Context context, String source, String text,
-                                    String pkg, long now, boolean likely) {
+                                    String pkg, String fingerprint, long eventTime,
+                                    long capturedAt) {
         try {
             SharedPreferences prefs = context.getSharedPreferences(DEBUG_PREFS, Context.MODE_PRIVATE);
             JSONArray recent = new JSONArray();
@@ -191,8 +204,10 @@ public class AutoLedgerPlugin extends Plugin {
             obj.put("source", source);
             obj.put("text", text);
             obj.put("package", pkg);
-            obj.put("time", now);
-            obj.put("likely", likely);
+            obj.put("fingerprint", fingerprint == null ? "" : fingerprint);
+            obj.put("time", eventTime);
+            obj.put("capturedAt", capturedAt);
+            obj.put("likely", true);
 
             // 最新的放最前面，只保留最近 N 条
             JSONArray next = new JSONArray();
@@ -204,8 +219,9 @@ public class AutoLedgerPlugin extends Plugin {
                     .putString(DEBUG_LAST_SOURCE, source)
                     .putString(DEBUG_LAST_TEXT, text)
                     .putString(DEBUG_LAST_PACKAGE, pkg)
-                    .putLong(DEBUG_LAST_TIME, now)
-                    .putBoolean(DEBUG_LAST_LIKELY, likely)
+                    .putLong(DEBUG_LAST_TIME, eventTime)
+                    .putBoolean(DEBUG_LAST_LIKELY, true)
+                    .putLong(DEBUG_LAST_TRANSACTION_AT, capturedAt)
                     .putString(DEBUG_RECENT, next.toString())
                     .apply();
         } catch (Exception ignored) {
@@ -256,8 +272,16 @@ public class AutoLedgerPlugin extends Plugin {
     }
 
     /** 通知监听服务的连接状态回调 */
-    public static void setNotificationConnected(boolean connected) {
+    public static void setNotificationConnected(Context context, boolean connected) {
         notificationConnected = connected;
+        SharedPreferences.Editor editor = context
+                .getSharedPreferences(DEBUG_PREFS, Context.MODE_PRIVATE)
+                .edit()
+                .putBoolean("notification_connected", connected);
+        if (connected) {
+            editor.putLong(DEBUG_LAST_CONNECTED_AT, System.currentTimeMillis());
+        }
+        editor.apply();
     }
 
     /** 诊断信息：通知监听是否连接 + 最近捕获内容（含历史） */
@@ -271,6 +295,11 @@ public class AutoLedgerPlugin extends Plugin {
         ret.put("lastPackage", prefs.getString(DEBUG_LAST_PACKAGE, ""));
         ret.put("lastTime", prefs.getLong(DEBUG_LAST_TIME, 0));
         ret.put("lastLikely", prefs.getBoolean(DEBUG_LAST_LIKELY, false));
+        ret.put("lastConnectedAt", prefs.getLong(DEBUG_LAST_CONNECTED_AT, 0));
+        ret.put("lastNotificationAt", prefs.getLong(DEBUG_LAST_NOTIFICATION_AT, 0));
+        ret.put("lastTransactionAt", prefs.getLong(DEBUG_LAST_TRANSACTION_AT, 0));
+        ret.put("filteredCount", prefs.getInt(DEBUG_FILTERED_COUNT, 0));
+        ret.put("wechatLastSeenAt", prefs.getLong(DEBUG_WECHAT_LAST_AT, 0));
         JSArray recent = new JSArray();
         try {
             JSONArray arr = new JSONArray(prefs.getString(DEBUG_RECENT, "[]"));
@@ -280,7 +309,9 @@ public class AutoLedgerPlugin extends Plugin {
                 item.put("source", o.optString("source"));
                 item.put("text", o.optString("text"));
                 item.put("package", o.optString("package"));
+                item.put("fingerprint", o.optString("fingerprint"));
                 item.put("time", o.optLong("time"));
+                item.put("capturedAt", o.optLong("capturedAt", o.optLong("time")));
                 item.put("likely", o.optBoolean("likely"));
                 recent.put(item);
             }
@@ -347,7 +378,9 @@ public class AutoLedgerPlugin extends Plugin {
                 js.put("source", obj.optString("source"));
                 js.put("text", obj.optString("text"));
                 js.put("package", obj.optString("package"));
+                js.put("fingerprint", obj.optString("fingerprint"));
                 js.put("timestamp", obj.optLong("timestamp"));
+                js.put("capturedAt", obj.optLong("capturedAt", obj.optLong("timestamp")));
                 ret.put(js);
             } catch (JSONException ignored) {
             }
@@ -379,10 +412,37 @@ public class AutoLedgerPlugin extends Plugin {
         }
     }
 
+    /** 查询系统是否已允许本 App 在后台持续运行（忽略电池优化） */
+    @PluginMethod
+    public void getBatteryOptimizationStatus(PluginCall call) {
+        PowerManager powerManager =
+                (PowerManager) getContext().getSystemService(Context.POWER_SERVICE);
+        boolean ignoring = powerManager != null
+                && powerManager.isIgnoringBatteryOptimizations(getContext().getPackageName());
+        JSObject ret = new JSObject();
+        ret.put("ignoringOptimizations", ignoring);
+        call.resolve(ret);
+    }
+
+    /** 打开本 App 的系统详情页，用户可在其中将电池策略设为“无限制”。 */
+    @PluginMethod
+    public void openAppBatterySettings(PluginCall call) {
+        try {
+            Intent intent = new Intent(
+                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:" + getContext().getPackageName()));
+            getActivity().startActivity(intent);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("无法打开应用电池设置", e);
+        }
+    }
+
     // ---- 持久队列实现 ----
 
     private static void enqueueCapture(Context context, String source, String text,
-                                       String packageName, long timestamp) {
+                                       String packageName, String fingerprint,
+                                       long timestamp, long capturedAt) {
         try {
             SharedPreferences prefs = context.getSharedPreferences(QUEUE_PREFS, Context.MODE_PRIVATE);
             JSONArray arr = readQueue(prefs);
@@ -390,7 +450,9 @@ public class AutoLedgerPlugin extends Plugin {
             obj.put("source", source);
             obj.put("text", text);
             obj.put("package", packageName == null ? "" : packageName);
+            obj.put("fingerprint", fingerprint == null ? "" : fingerprint);
             obj.put("timestamp", timestamp);
+            obj.put("capturedAt", capturedAt);
             arr.put(obj);
             while (arr.length() > MAX_QUEUE) {
                 arr.remove(0);

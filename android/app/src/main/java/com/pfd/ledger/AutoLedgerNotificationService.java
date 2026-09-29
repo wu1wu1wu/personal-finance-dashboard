@@ -26,7 +26,7 @@ public class AutoLedgerNotificationService extends NotificationListenerService {
     @Override
     public void onListenerConnected() {
         live = this;
-        AutoLedgerPlugin.setNotificationConnected(true);
+        AutoLedgerPlugin.setNotificationConnected(getApplicationContext(), true);
         // 连上的瞬间补扫一次，捞回服务未连接期间投递的通知
         scanActive("active");
     }
@@ -34,7 +34,7 @@ public class AutoLedgerNotificationService extends NotificationListenerService {
     @Override
     public void onListenerDisconnected() {
         if (live == this) live = null;
-        AutoLedgerPlugin.setNotificationConnected(false);
+        AutoLedgerPlugin.setNotificationConnected(getApplicationContext(), false);
     }
 
     @Override
@@ -83,7 +83,13 @@ public class AutoLedgerNotificationService extends NotificationListenerService {
         try {
             String text = extractText(sbn);
             String fingerprint = sbn.getKey() + "|" + sbn.getPostTime();
-            AutoLedgerPlugin.capture(getApplicationContext(), source, text, sbn.getPackageName(), fingerprint);
+            AutoLedgerPlugin.capture(
+                    getApplicationContext(),
+                    source,
+                    text,
+                    sbn.getPackageName(),
+                    fingerprint,
+                    sbn.getPostTime());
         } catch (Exception ignored) {
             // 单条通知解析失败不影响其他通知
         }

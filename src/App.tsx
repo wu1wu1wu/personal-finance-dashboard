@@ -11,6 +11,11 @@ import Dashboard from '@/pages/Dashboard';
 import Transactions from '@/pages/Transactions';
 import Budget from '@/pages/Budget';
 import Settings from '@/pages/Settings';
+import SettingsAbout from '@/pages/SettingsAbout';
+import SettingsAutoLedger from '@/pages/SettingsAutoLedger';
+import SettingsCategories from '@/pages/SettingsCategories';
+import SettingsData from '@/pages/SettingsData';
+import SettingsImport from '@/pages/SettingsImport';
 import Cleanup from '@/pages/Cleanup';
 import AddTransactionModal from '@/components/transactions/AddTransactionModal';
 import { useAutoLedger } from '@/hooks/useAutoLedger';
@@ -76,6 +81,11 @@ export default function App() {
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/budget" element={<Budget />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/settings/import" element={<SettingsImport />} />
+            <Route path="/settings/auto-ledger" element={<SettingsAutoLedger />} />
+            <Route path="/settings/categories" element={<SettingsCategories />} />
+            <Route path="/settings/data" element={<SettingsData />} />
+            <Route path="/settings/about" element={<SettingsAbout />} />
             <Route path="/cleanup" element={<Cleanup />} />
           </Routes>
         </main>

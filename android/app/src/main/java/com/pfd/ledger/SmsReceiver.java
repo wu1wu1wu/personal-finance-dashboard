@@ -18,12 +18,22 @@ public class SmsReceiver extends BroadcastReceiver {
         if (messages == null || messages.length == 0) return;
 
         StringBuilder sb = new StringBuilder();
+        long eventTime = 0;
+        String sender = "";
         for (SmsMessage message : messages) {
             String body = message.getMessageBody();
             if (body != null && !body.isEmpty()) {
                 sb.append(body).append('\n');
             }
+            if (eventTime == 0 && message.getTimestampMillis() > 0) {
+                eventTime = message.getTimestampMillis();
+            }
+            if (sender.isEmpty() && message.getOriginatingAddress() != null) {
+                sender = message.getOriginatingAddress();
+            }
         }
-        AutoLedgerPlugin.capture(context, "sms", sb.toString());
+        String text = sb.toString().trim();
+        String fingerprint = "sms|" + sender + "|" + eventTime + "|" + text.hashCode();
+        AutoLedgerPlugin.capture(context, "sms", text, "", fingerprint, eventTime);
     }
 }
