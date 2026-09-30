@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CalendarMinus, Database, Download, ShieldCheck, TriangleAlert, Upload } from 'lucide-react';
+import { CalendarMinus, Database, Download, RotateCcw, ShieldCheck, TriangleAlert, Upload } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import PageHeader from '@/components/ui/PageHeader';
 import AutoLedger from '@/plugins/AutoLedger';
@@ -29,16 +29,24 @@ interface PendingRestore {
 
 export default function SettingsData() {
   const navigate = useNavigate();
-  const { transactions, clearAll: clearTransactions, loadFromStorage: loadTransactions } =
-    useTransactionStore();
+  const {
+    transactions,
+    trash,
+    clearAll: clearTransactions,
+    loadFromStorage: loadTransactions,
+    restoreTrashEntry,
+    clearTrash,
+  } = useTransactionStore();
   const { customRules, loadFromStorage: loadRules } = useClassificationStore();
-  const { budgets, totalBudgets, loadFromStorage: loadBudgets } = useBudgetStore();
+  const { budgets, totalBudgets, loadFromStorage: loadBudgets, restoreFromTrash } =
+    useBudgetStore();
   const { settings, loadFromStorage: loadSettings, setImportDesensitize } = useSettingsStore();
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [exportStatus, setExportStatus] = useState<string | null>(null);
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [pendingRestore, setPendingRestore] = useState<PendingRestore | null>(null);
+  const [trashStatus, setTrashStatus] = useState<string | null>(null);
 
   useEffect(() => {
     void loadTransactions();
@@ -46,6 +54,14 @@ export default function SettingsData() {
     void loadBudgets();
     void loadSettings();
   }, [loadTransactions, loadRules, loadBudgets, loadSettings]);
+
+  /** 从最近删除里恢复一批：交易回库，同批删掉的预算也一并恢复 */
+  const handleRestoreTrash = (entryId: string) => {
+    const entry = restoreTrashEntry(entryId);
+    if (!entry) return;
+    restoreFromTrash(entry);
+    setTrashStatus(`已恢复 ${entry.transactions.length} 笔交易`);
+  };
 
   /** 导出备份：脱敏版会把交易对方/商品说明/单号里的卡号手机号打码 */
   const handleExport = async (desensitize: boolean) => {
@@ -261,6 +277,69 @@ export default function SettingsData() {
         {importStatus && (
           <p role="status" aria-live="polite" className="mt-3 text-sm text-income">
             {importStatus}
+          </p>
+        )}
+      </section>
+
+      {/* 最近删除：删掉的交易在这里留 30 天，可以整批恢复 */}
+      <section className={CARD}>
+        <h2 className={SECTION_TITLE}>
+          <RotateCcw size={16} className="text-ink-subtle" aria-hidden="true" />
+          最近删除
+        </h2>
+        <p className="mb-3 text-xs text-ink-muted">
+          删除的交易会在这里保留 30 天（最多 20 批、500 笔），可以随时恢复；封面图也一并保留。
+        </p>
+
+        {trash.length === 0 ? (
+          <p className="rounded-xl bg-canvas px-3 py-4 text-center text-sm text-ink-subtle">
+            没有可恢复的内容
+          </p>
+        ) : (
+          <>
+            <ul className="space-y-2">
+              {trash.map((entry) => (
+                <li
+                  key={entry.id}
+                  className="flex items-center gap-3 rounded-xl border border-line p-3"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-ink">
+                      {entry.label}
+                    </span>
+                    <span className="mt-0.5 block text-xs text-ink-subtle">
+                      {new Date(entry.deletedAt).toLocaleString('zh-CN')} ·{' '}
+                      {entry.transactions.length} 笔
+                      {entry.reason === 'months' ? ' · 按月清理' : ' · 单笔删除'}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleRestoreTrash(entry.id)}
+                    className="flex min-h-11 shrink-0 items-center rounded-lg bg-brand px-3 text-sm font-medium text-white transition-colors hover:bg-brand/90"
+                  >
+                    恢复
+                  </button>
+                </li>
+              ))}
+            </ul>
+
+            <button
+              type="button"
+              onClick={() => {
+                clearTrash();
+                setTrashStatus('已清空最近删除');
+              }}
+              className="mt-3 rounded-lg border border-line px-4 py-2 text-sm text-ink-muted transition-colors hover:bg-canvas hover:text-ink"
+            >
+              清空最近删除
+            </button>
+          </>
+        )}
+
+        {trashStatus && (
+          <p role="status" aria-live="polite" className="mt-3 text-sm text-income">
+            {trashStatus}
           </p>
         )}
       </section>

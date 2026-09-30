@@ -5,6 +5,7 @@
 import { useMemo } from 'react';
 import { ChartColumn } from 'lucide-react';
 import EChart from '@/components/charts/EChart';
+import { useChartColors } from '@/components/charts/useChartColors';
 import { buildDailyOption, summarizeDaily } from '@/components/dashboard/chart-options';
 import type { DailySpendPoint } from '@/core/dashboard-engine';
 
@@ -13,7 +14,8 @@ interface DailyBarChartProps {
 }
 
 export default function DailyBarChart({ data }: DailyBarChartProps) {
-  const option = useMemo(() => buildDailyOption(data), [data]);
+  const palette = useChartColors();
+  const option = useMemo(() => buildDailyOption(data, palette), [data, palette]);
   const summary = useMemo(() => summarizeDaily(data), [data]);
 
   return (

@@ -3,17 +3,38 @@
 // ============================================================
 
 import { create } from 'zustand';
-import type { Transaction, FilterOptions } from '@/types';
+import type { Transaction, FilterOptions, Budget } from '@/types';
 import { STORAGE_KEYS } from '@/types';
 import { storage } from '@/storage/StorageAdapter';
 import { queuePersist } from '@/storage/persist-queue';
 import { coverKey, hydrateCovers, migrateInlineCovers, saveCover, stripCovers } from '@/storage/cover-store';
 import { classifyTransaction } from '@/core/classifier';
 import { getPeriodicTransactions, markPeriodicTransactions } from '@/core/periodic-engine';
+import {
+  addTrashEntry,
+  createTrashEntry,
+  pruneTrash,
+  restoreTransactions,
+} from '@/core/trash';
+import type { TrashEntry } from '@/core/trash';
+
+/**
+ * 清掉这些批次里交易的封面图。
+ * 删除时故意不清（撤销还要用），只有批次被淘汰或用户清空回收站时才真正删。
+ */
+async function dropCoverImages(entries: TrashEntry[]): Promise<void> {
+  for (const entry of entries) {
+    for (const txn of entry.transactions) {
+      await storage.remove(coverKey(txn.id));
+    }
+  }
+}
 
 interface TransactionStore {
   /** 所有交易记录 */
   transactions: Transaction[];
+  /** 最近删除（回收站）：删除先入这里，可从底部撤销条或设置页找回 */
+  trash: TrashEntry[];
   /** 是否已从存储加载 */
   loaded: boolean;
   /** 是否正在导入 */
@@ -55,10 +76,20 @@ interface TransactionStore {
   addTag: (id: string, tag: string) => void;
   /** 移除标签 */
   removeTag: (id: string, tag: string) => void;
-  /** 删除单条交易 */
-  deleteTransaction: (id: string) => void;
-  /** 按月份批量删除交易，返回删除的笔数 */
-  deleteByMonths: (months: string[]) => number;
+  /** 删除单条交易（进入最近删除，可撤销）；返回回收站批次 id，null 表示没删成 */
+  deleteTransaction: (id: string) => string | null;
+  /**
+   * 按月份批量删除交易，返回删除的笔数。
+   * extra 用于把同一次清理里删掉的预算也一起存进回收站，撤销时一并恢复。
+   */
+  deleteByMonths: (
+    months: string[],
+    extra?: { label?: string; budgets?: Budget[]; totalBudgets?: Record<string, number> },
+  ) => number;
+  /** 撤销一批删除：把交易放回去，返回该批次（调用方据此恢复预算） */
+  restoreTrashEntry: (entryId: string) => TrashEntry | null;
+  /** 清空最近删除（同时清掉这些交易的封面图） */
+  clearTrash: () => void;
   /** 清空所有交易 */
   clearAll: () => Promise<void>;
   /** 按筛选条件获取交易 */
@@ -79,13 +110,26 @@ interface TransactionStore {
 
 export const useTransactionStore = create<TransactionStore>((set, get) => ({
   transactions: [],
+  trash: [],
   loaded: false,
   importing: false,
   importMessage: null,
 
   loadFromStorage: async () => {
     if (get().loaded) return;
-    const data = await storage.get<Transaction[]>(STORAGE_KEYS.TRANSACTIONS);
+    const [data, storedTrash] = await Promise.all([
+      storage.get<Transaction[]>(STORAGE_KEYS.TRANSACTIONS),
+      storage.get<TrashEntry[]>(STORAGE_KEYS.TRASH),
+    ]);
+
+    // 最近删除：加载时就剪枝，过期批次的封面图一并清掉
+    const pruned = pruneTrash(Array.isArray(storedTrash) ? storedTrash : []);
+    if (pruned.dropped.length > 0) {
+      await dropCoverImages(pruned.dropped);
+      void storage.set(STORAGE_KEYS.TRASH, pruned.entries);
+    }
+    set({ trash: pruned.entries });
+
     if (!data) {
       set({ transactions: [], loaded: true });
       return;
@@ -209,17 +253,54 @@ export const useTransactionStore = create<TransactionStore>((set, get) => ({
     return updates.length;
   },
 
-  deleteByMonths: (months) => {
+  deleteByMonths: (months, extra) => {
     if (months.length === 0) return 0;
     const monthSet = new Set(months);
-    const before = get().transactions.length;
+    const removed = get().transactions.filter((t) =>
+      monthSet.has(t.transactionTime.substring(0, 7)),
+    );
+    if (removed.length === 0) return 0;
+
+    // 整批入回收站（含同一次清理删掉的预算），用户可以从设置页整批恢复
+    const entry = createTrashEntry({
+      reason: 'months',
+      label: extra?.label ?? [...months].sort().join('、'),
+      transactions: removed,
+      budgets: extra?.budgets,
+      totalBudgets: extra?.totalBudgets,
+    });
+    const pruned = addTrashEntry(get().trash, entry);
+
     set((state) => ({
       transactions: state.transactions.filter(
         (t) => !monthSet.has(t.transactionTime.substring(0, 7)),
       ),
+      trash: pruned.entries,
+    }));
+    void dropCoverImages(pruned.dropped);
+    get().persist();
+    return removed.length;
+  },
+
+  restoreTrashEntry: (entryId) => {
+    const entry = get().trash.find((e) => e.id === entryId);
+    if (!entry) return null;
+
+    set((state) => ({
+      transactions: restoreTransactions(entry, state.transactions),
+      trash: state.trash.filter((e) => e.id !== entryId),
     }));
     get().persist();
-    return before - get().transactions.length;
+    get().autoMarkPeriodic();
+    return entry;
+  },
+
+  clearTrash: () => {
+    const { trash } = get();
+    if (trash.length === 0) return;
+    set({ trash: [] });
+    void dropCoverImages(trash);
+    get().persist();
   },
 
   applyReconcile: (next) => {
@@ -290,17 +371,35 @@ export const useTransactionStore = create<TransactionStore>((set, get) => ({
   },
 
   deleteTransaction: (id) => {
+    const target = get().transactions.find((t) => t.id === id);
+    if (!target) return null;
+
+    // 先入回收站再删：封面图**不立即清**，撤销时还要用
+    const entry = createTrashEntry({
+      reason: 'single',
+      label: target.counterparty || target.description || '单笔交易',
+      transactions: [target],
+    });
+    const pruned = addTrashEntry(get().trash, entry);
+
     set((state) => ({
       transactions: state.transactions.filter((t) => t.id !== id),
+      trash: pruned.entries,
     }));
-    // 封面图是独立键，删记录时一起清掉，避免残留占空间
-    void storage.remove(coverKey(id));
+    void dropCoverImages(pruned.dropped);
     get().persist();
+    return entry.id;
   },
 
   clearAll: async () => {
-    set({ transactions: [] });
-    await storage.remove(STORAGE_KEYS.TRANSACTIONS);
+    // 回收站与封面图一起清，否则"清除所有数据"之后还能从回收站翻出旧记录
+    const { trash } = get();
+    set({ transactions: [], trash: [] });
+    await dropCoverImages(trash);
+    await Promise.all([
+      storage.remove(STORAGE_KEYS.TRANSACTIONS),
+      storage.remove(STORAGE_KEYS.TRASH),
+    ]);
   },
 
   getFiltered: (filters) => {
@@ -354,8 +453,12 @@ export const useTransactionStore = create<TransactionStore>((set, get) => ({
   persist: async () => {
     // 走持久化队列：写失败会挂到 usePersistStatus 上提示用户，而不是静默丢失。
     // 封面图不在主记录里（见 cover-store），写盘前统一剥离，避免每次改动都序列化几 MB 图片。
+    // 回收站与交易一起写：它们是同一次删除的两半，分开写容易出现"删了但撤不回"。
     queuePersist('transactions', async () => {
-      await storage.set(STORAGE_KEYS.TRANSACTIONS, stripCovers(get().transactions));
+      await Promise.all([
+        storage.set(STORAGE_KEYS.TRANSACTIONS, stripCovers(get().transactions)),
+        storage.set(STORAGE_KEYS.TRASH, get().trash),
+      ]);
     });
   },
 

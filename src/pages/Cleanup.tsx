@@ -7,18 +7,28 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Check, Trash } from 'lucide-react';
 import { useTransactionStore } from '@/stores/transaction-store';
 import { useBudgetStore } from '@/stores/budget-store';
+import UndoBar from '@/components/ui/UndoBar';
 import { formatCurrency } from '@/utils/format';
 import { isConsumption } from '@/core/transaction-query';
 import { cn } from '@/utils/cn';
 
 export default function Cleanup() {
   const navigate = useNavigate();
-  const { transactions, loaded, loadFromStorage, deleteByMonths } = useTransactionStore();
-  const { loaded: budgetLoaded, loadFromStorage: loadBudgets, removeByMonths } = useBudgetStore();
+  const { transactions, loaded, loadFromStorage, deleteByMonths, restoreTrashEntry } =
+    useTransactionStore();
+  const {
+    budgets,
+    totalBudgets,
+    loaded: budgetLoaded,
+    loadFromStorage: loadBudgets,
+    removeByMonths,
+    restoreFromTrash,
+  } = useBudgetStore();
 
   const [selected, setSelected] = useState<string[]>([]);
   const [confirming, setConfirming] = useState(false);
   const [removedCount, setRemovedCount] = useState<number | null>(null);
+  const [undo, setUndo] = useState<{ entryId: string; label: string } | null>(null);
 
   useEffect(() => {
     void loadFromStorage();
@@ -61,11 +71,37 @@ export default function Cleanup() {
     .reduce((sum, m) => sum + m.count, 0);
 
   const handleClean = () => {
-    const count = deleteByMonths(selected);
+    const monthSet = new Set(selected);
+    // 先把这次要一起删掉的预算快照下来，撤销时才能一并恢复
+    const removedBudgets = budgets.filter((b) => monthSet.has(b.month));
+    const removedTotals = Object.fromEntries(
+      Object.entries(totalBudgets).filter(([month]) => monthSet.has(month)),
+    );
+    const label = [...selected].sort().join('、');
+
+    const count = deleteByMonths(selected, {
+      label,
+      budgets: removedBudgets,
+      totalBudgets: removedTotals,
+    });
     removeByMonths(selected);
     setRemovedCount(count);
     setSelected([]);
     setConfirming(false);
+
+    // 刚删的这批就是回收站里最新的一条，撤销条据此回滚
+    const entryId = useTransactionStore.getState().trash[0]?.id;
+    if (entryId && count > 0) {
+      setUndo({ entryId, label: `已清理 ${selected.length} 个月，共 ${count} 笔` });
+    }
+  };
+
+  const handleUndo = () => {
+    if (!undo) return;
+    const entry = restoreTrashEntry(undo.entryId);
+    if (entry) restoreFromTrash(entry);
+    setUndo(null);
+    setRemovedCount(null);
   };
 
   return (
@@ -196,6 +232,10 @@ export default function Cleanup() {
             )}
           </div>
         </div>
+      )}
+
+      {undo && (
+        <UndoBar label={undo.label} onUndo={handleUndo} onDismiss={() => setUndo(null)} />
       )}
     </div>
   );

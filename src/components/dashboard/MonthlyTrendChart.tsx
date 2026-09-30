@@ -5,6 +5,7 @@
 import { useMemo } from 'react';
 import { TrendingUp } from 'lucide-react';
 import EChart from '@/components/charts/EChart';
+import { useChartColors } from '@/components/charts/useChartColors';
 import { buildTrendOption, summarizeTrend } from '@/components/dashboard/chart-options';
 import type { MonthlyTrendPoint } from '@/core/dashboard-engine';
 
@@ -13,7 +14,8 @@ interface MonthlyTrendChartProps {
 }
 
 export default function MonthlyTrendChart({ data }: MonthlyTrendChartProps) {
-  const option = useMemo(() => buildTrendOption(data), [data]);
+  const palette = useChartColors();
+  const option = useMemo(() => buildTrendOption(data, palette), [data, palette]);
   const summary = useMemo(() => summarizeTrend(data), [data]);
 
   return (

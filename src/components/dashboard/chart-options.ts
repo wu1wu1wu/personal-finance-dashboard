@@ -7,7 +7,8 @@
 //    真渲染一遍（见 chart-options.test.ts），从而证明"按需注册"没漏组件。
 // ============================================================
 
-import { CHART_COLORS } from '@/constants/chart-colors';
+import { CHART_COLORS, withAlpha } from '@/constants/chart-colors';
+import type { ChartPalette } from '@/constants/chart-colors';
 import { formatCurrency } from '@/utils/format';
 import type { ChartOption } from '@/components/charts/register';
 import type {
@@ -28,7 +29,7 @@ const CONTAIN_LABEL = {
 } as const;
 
 /** 月度支出/收入趋势折线图 */
-export function buildTrendOption(data: MonthlyTrendPoint[]): ChartOption {
+export function buildTrendOption(data: MonthlyTrendPoint[], palette: ChartPalette = CHART_COLORS): ChartOption {
   return {
     tooltip: {
       trigger: 'axis',
@@ -40,7 +41,7 @@ export function buildTrendOption(data: MonthlyTrendPoint[]): ChartOption {
         }>;
         let html = `<div style="font-weight:600;margin-bottom:4px">${list[0]?.axisValue ?? ''}</div>`;
         for (const p of list) {
-          const color = p.seriesName === '支出' ? CHART_COLORS.expense : CHART_COLORS.income;
+          const color = p.seriesName === '支出' ? palette.expense : palette.income;
           html += `<div style="display:flex;align-items:center;gap:6px">
             <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color}"></span>
             ${p.seriesName}: ${formatCurrency(p.value)}
@@ -53,7 +54,7 @@ export function buildTrendOption(data: MonthlyTrendPoint[]): ChartOption {
       data: ['支出', '收入'],
       bottom: 0,
       icon: 'roundRect',
-      textStyle: { fontSize: 12, color: CHART_COLORS.legendText },
+      textStyle: { fontSize: 12, color: palette.legendText },
       itemWidth: 12,
       itemHeight: 8,
       itemGap: 16,
@@ -62,18 +63,18 @@ export function buildTrendOption(data: MonthlyTrendPoint[]): ChartOption {
     xAxis: {
       type: 'category',
       data: data.map((d) => d.label),
-      axisLine: { lineStyle: { color: CHART_COLORS.axisLine } },
+      axisLine: { lineStyle: { color: palette.axisLine } },
       axisTick: { show: false },
-      axisLabel: { fontSize: 11, color: CHART_COLORS.axisLabel },
+      axisLabel: { fontSize: 11, color: palette.axisLabel },
     },
     yAxis: {
       type: 'value',
       axisLine: { show: false },
       axisTick: { show: false },
-      splitLine: { lineStyle: { color: CHART_COLORS.gridLine, type: 'dashed' } },
+      splitLine: { lineStyle: { color: palette.gridLine, type: 'dashed' } },
       axisLabel: {
         fontSize: 11,
-        color: CHART_COLORS.axisLabel,
+        color: palette.axisLabel,
         formatter: (val: number) => (val >= 10000 ? `${(val / 10000).toFixed(0)}万` : `${val}`),
       },
     },
@@ -85,8 +86,8 @@ export function buildTrendOption(data: MonthlyTrendPoint[]): ChartOption {
         smooth: true,
         symbol: 'circle',
         symbolSize: 6,
-        lineStyle: { width: 2.5, color: CHART_COLORS.expense },
-        itemStyle: { color: CHART_COLORS.expense },
+        lineStyle: { width: 2.5, color: palette.expense },
+        itemStyle: { color: palette.expense },
         areaStyle: {
           color: {
             type: 'linear',
@@ -95,8 +96,8 @@ export function buildTrendOption(data: MonthlyTrendPoint[]): ChartOption {
             x2: 0,
             y2: 1,
             colorStops: [
-              { offset: 0, color: 'rgba(201,42,46,0.14)' },
-              { offset: 1, color: 'rgba(201,42,46,0.02)' },
+              { offset: 0, color: withAlpha(palette.expense, 0.14) },
+              { offset: 1, color: withAlpha(palette.expense, 0.02) },
             ],
           },
         },
@@ -108,8 +109,8 @@ export function buildTrendOption(data: MonthlyTrendPoint[]): ChartOption {
         smooth: true,
         symbol: 'circle',
         symbolSize: 6,
-        lineStyle: { width: 2.5, color: CHART_COLORS.income },
-        itemStyle: { color: CHART_COLORS.income },
+        lineStyle: { width: 2.5, color: palette.income },
+        itemStyle: { color: palette.income },
         areaStyle: {
           color: {
             type: 'linear',
@@ -118,8 +119,8 @@ export function buildTrendOption(data: MonthlyTrendPoint[]): ChartOption {
             x2: 0,
             y2: 1,
             colorStops: [
-              { offset: 0, color: 'rgba(11,122,68,0.14)' },
-              { offset: 1, color: 'rgba(11,122,68,0.02)' },
+              { offset: 0, color: withAlpha(palette.income, 0.14) },
+              { offset: 1, color: withAlpha(palette.income, 0.02) },
             ],
           },
         },
@@ -129,7 +130,7 @@ export function buildTrendOption(data: MonthlyTrendPoint[]): ChartOption {
 }
 
 /** 本月每日支出柱状图（含日均参考线） */
-export function buildDailyOption(data: DailySpendPoint[]): ChartOption {
+export function buildDailyOption(data: DailySpendPoint[], palette: ChartPalette = CHART_COLORS): ChartOption {
   const totalSpend = data.reduce((s, d) => s + d.amount, 0);
   const daysWithData = data.filter((d) => d.amount > 0).length;
   const dailyAvg = daysWithData > 0 ? totalSpend / daysWithData : 0;
@@ -151,11 +152,11 @@ export function buildDailyOption(data: DailySpendPoint[]): ChartOption {
     xAxis: {
       type: 'category',
       data: data.map((d) => d.label),
-      axisLine: { lineStyle: { color: CHART_COLORS.axisLine } },
+      axisLine: { lineStyle: { color: palette.axisLine } },
       axisTick: { show: false },
       axisLabel: {
         fontSize: 10,
-        color: CHART_COLORS.axisLabel,
+        color: palette.axisLabel,
         // 每天一个标签会糊成一片，只显示 1 号与每 5 天
         interval: (index: number) => index === 0 || (index + 1) % 5 === 0,
       },
@@ -164,10 +165,10 @@ export function buildDailyOption(data: DailySpendPoint[]): ChartOption {
       type: 'value',
       axisLine: { show: false },
       axisTick: { show: false },
-      splitLine: { lineStyle: { color: CHART_COLORS.gridLine, type: 'dashed' } },
+      splitLine: { lineStyle: { color: palette.gridLine, type: 'dashed' } },
       axisLabel: {
         fontSize: 10,
-        color: CHART_COLORS.axisLabel,
+        color: palette.axisLabel,
         formatter: (val: number) => (val >= 1000 ? `${(val / 1000).toFixed(0)}k` : `${val}`),
       },
     },
@@ -178,7 +179,7 @@ export function buildDailyOption(data: DailySpendPoint[]): ChartOption {
           value: d.amount,
           itemStyle: {
             borderRadius: [3, 3, 0, 0],
-            color: d.amount > highlightThreshold ? CHART_COLORS.expense : CHART_COLORS.bar,
+            color: d.amount > highlightThreshold ? palette.expense : palette.bar,
           },
         })),
         barMaxWidth: 12,
@@ -187,11 +188,11 @@ export function buildDailyOption(data: DailySpendPoint[]): ChartOption {
             ? {
                 silent: true,
                 symbol: 'none',
-                lineStyle: { color: CHART_COLORS.alert, type: 'dashed', width: 1.5 },
+                lineStyle: { color: palette.alert, type: 'dashed', width: 1.5 },
                 label: {
                   formatter: `日均 ${formatCurrency(dailyAvg)}`,
                   fontSize: 10,
-                  color: CHART_COLORS.alert,
+                  color: palette.alert,
                   // 贴左端显示，否则会被右边界裁掉
                   position: 'insideStartTop',
                 },
@@ -204,7 +205,7 @@ export function buildDailyOption(data: DailySpendPoint[]): ChartOption {
 }
 
 /** 分类占比环形图 */
-export function buildPieOption(data: CategoryBreakdownPoint[]): ChartOption {
+export function buildPieOption(data: CategoryBreakdownPoint[], palette: ChartPalette = CHART_COLORS): ChartOption {
   return {
     tooltip: {
       trigger: 'item',
@@ -229,7 +230,7 @@ export function buildPieOption(data: CategoryBreakdownPoint[]): ChartOption {
         padAngle: 2,
         itemStyle: {
           borderRadius: 3,
-          borderColor: CHART_COLORS.surface,
+          borderColor: palette.surface,
           borderWidth: 2,
         },
         label: { show: false },
@@ -250,7 +251,7 @@ export function buildPieOption(data: CategoryBreakdownPoint[]): ChartOption {
 }
 
 /** 固定开销 vs 弹性开销环形图 */
-export function buildPeriodicBreakdownOption(data: PeriodicBreakdown): ChartOption {
+export function buildPeriodicBreakdownOption(data: PeriodicBreakdown, palette: ChartPalette = CHART_COLORS): ChartOption {
   return {
     tooltip: {
       trigger: 'item',
@@ -269,18 +270,18 @@ export function buildPeriodicBreakdownOption(data: PeriodicBreakdown): ChartOpti
         padAngle: 2,
         itemStyle: {
           borderRadius: 3,
-          borderColor: CHART_COLORS.surface,
+          borderColor: palette.surface,
           borderWidth: 2,
         },
         label: { show: false },
         labelLine: { show: false },
         emphasis: { scaleSize: 4 },
         data: [
-          { name: '固定开销', value: data.fixedAmount, itemStyle: { color: CHART_COLORS.fixed } },
+          { name: '固定开销', value: data.fixedAmount, itemStyle: { color: palette.fixed } },
           {
             name: '弹性开销',
             value: data.flexibleAmount,
-            itemStyle: { color: CHART_COLORS.flexible },
+            itemStyle: { color: palette.flexible },
           },
         ],
       },

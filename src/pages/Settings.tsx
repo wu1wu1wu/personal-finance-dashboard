@@ -1,10 +1,17 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronRight, Database, FolderOpen, Info, Smartphone, Tags } from 'lucide-react';
+import { ChevronRight, Database, FolderOpen, Info, Smartphone, SunMoon, Tags } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { useTransactionStore } from '@/stores/transaction-store';
 import { useClassificationStore } from '@/stores/classification-store';
 import { useBudgetStore } from '@/stores/budget-store';
+import { useSettingsStore } from '@/stores/settings-store';
+
+const THEME_LABELS: Record<string, string> = {
+  system: '跟随系统',
+  light: '浅色',
+  dark: '深色',
+};
 
 interface MenuItem {
   to: string;
@@ -18,6 +25,7 @@ export default function Settings() {
   const { transactions, loadFromStorage: loadTransactions } = useTransactionStore();
   const { customRules, loadFromStorage: loadRules } = useClassificationStore();
   const { loadFromStorage: loadBudgets } = useBudgetStore();
+  const themeMode = useSettingsStore((s) => s.settings.themeMode);
 
   useEffect(() => {
     void loadTransactions();
@@ -32,6 +40,13 @@ export default function Settings() {
       description: 'CSV / XLSX 账单文件',
       icon: FolderOpen,
       tone: 'bg-brand-soft text-brand',
+    },
+    {
+      to: '/settings/appearance',
+      label: '外观',
+      description: THEME_LABELS[themeMode] ?? '跟随系统',
+      icon: SunMoon,
+      tone: 'bg-canvas text-ink-muted',
     },
     {
       to: '/settings/auto-ledger',

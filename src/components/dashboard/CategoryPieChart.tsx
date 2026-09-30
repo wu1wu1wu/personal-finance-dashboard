@@ -7,6 +7,7 @@
 
 import { useMemo } from 'react';
 import EChart from '@/components/charts/EChart';
+import { useChartColors } from '@/components/charts/useChartColors';
 import { buildPieOption } from '@/components/dashboard/chart-options';
 import type { CategoryBreakdownPoint } from '@/core/dashboard-engine';
 import { formatCurrency, formatCurrencyShort } from '@/utils/format';
@@ -19,7 +20,8 @@ interface CategoryPieChartProps {
 
 export default function CategoryPieChart({ data, onCategoryClick }: CategoryPieChartProps) {
   const total = data.reduce((sum, d) => sum + d.amount, 0);
-  const option = useMemo(() => buildPieOption(data), [data]);
+  const palette = useChartColors();
+  const option = useMemo(() => buildPieOption(data, palette), [data, palette]);
 
   const handleChartClick = (params: { name?: string }) => {
     if (onCategoryClick && params.name) onCategoryClick(params.name);

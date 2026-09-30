@@ -17,6 +17,7 @@ import {
 import TransactionDetailModal from '@/components/transactions/TransactionDetailModal';
 import TransactionListItem from '@/components/transactions/TransactionListItem';
 import CategoryIcon from '@/components/ui/CategoryIcon';
+import UndoBar from '@/components/ui/UndoBar';
 import { useTransactionStore } from '@/stores/transaction-store';
 import { useClassificationStore } from '@/stores/classification-store';
 import { usePerTransactionLimits } from '@/hooks/usePerTransactionLimits';
@@ -122,6 +123,8 @@ export default function Transactions() {
   const [batchMode, setBatchMode] = useState(false);
   const [batchIds, setBatchIds] = useState<string[]>([]);
   const [reclassifyHint, setReclassifyHint] = useState<string | null>(null);
+  // 删除后的撤销提示（数据同时在设置页的「最近删除」里）
+  const [undo, setUndo] = useState<{ entryId: string; label: string } | null>(null);
 
   const limitOf = usePerTransactionLimits();
 
@@ -202,11 +205,20 @@ export default function Transactions() {
   // 行组件是 memo 的，传给它的回调必须稳定，否则每次渲染都会击穿 memo
   const handleDelete = useCallback(
     (id: string) => {
-      deleteTransaction(id);
+      const entryId = deleteTransaction(id);
       setPendingDeleteId(null);
+      if (entryId) setUndo({ entryId, label: '已删除 1 笔交易' });
     },
     [deleteTransaction],
   );
+
+  const handleUndo = useCallback(() => {
+    if (!undo) return;
+    useTransactionStore.getState().restoreTrashEntry(undo.entryId);
+    setUndo(null);
+  }, [undo]);
+
+  const dismissUndo = useCallback(() => setUndo(null), []);
 
   const cancelDelete = useCallback(() => setPendingDeleteId(null), []);
 
@@ -581,6 +593,8 @@ export default function Transactions() {
           </div>
         </div>
       )}
+
+      {undo && <UndoBar label={undo.label} onUndo={handleUndo} onDismiss={dismissUndo} />}
 
       {selectedTxn && <TransactionDetailModal txn={selectedTxn} onClose={closeDetail} />}
     </div>

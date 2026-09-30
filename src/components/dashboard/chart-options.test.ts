@@ -10,6 +10,7 @@ import {
   summarizePeriodicBreakdown,
 } from './chart-options'
 import type { ChartOption } from '@/components/charts/register'
+import { CHART_COLORS, DARK_CHART_COLORS } from '@/constants/chart-colors'
 import type {
   CategoryBreakdownPoint,
   DailySpendPoint,
@@ -70,6 +71,24 @@ describe('图表 option 能在按需注册下渲染出来', () => {
     expect(svg).toContain('支出')
     expect(svg).toContain('收入')
     expect(svg.length).toBeGreaterThan(1000)
+  })
+
+  it('深色调色板下四张图同样能渲染（图表配色跟随外观）', () => {
+    const dark = DARK_CHART_COLORS
+    const svgs = [
+      renderToSvg(buildTrendOption(trend, dark)),
+      renderToSvg(buildDailyOption(daily, dark)),
+      renderToSvg(buildPieOption(pie, dark)),
+      renderToSvg(buildPeriodicBreakdownOption(breakdown, dark)),
+    ]
+
+    for (const svg of svgs) {
+      expect(svg).toContain('<svg')
+      expect(svg.length).toBeGreaterThan(500)
+    }
+    // 支出线用的是深色主题的红，而不是浅色那支
+    expect(svgs[0]).toContain(dark.expense)
+    expect(svgs[0]).not.toContain(CHART_COLORS.expense)
   })
 
   it('每日支出柱状图，含日均参考线（需要 MarkLineComponent）', () => {

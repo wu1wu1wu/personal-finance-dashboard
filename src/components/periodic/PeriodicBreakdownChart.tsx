@@ -7,11 +7,11 @@
 import { useMemo } from 'react';
 import { ChartPie } from 'lucide-react';
 import EChart from '@/components/charts/EChart';
+import { useChartColors } from '@/components/charts/useChartColors';
 import {
   buildPeriodicBreakdownOption,
   summarizePeriodicBreakdown,
 } from '@/components/dashboard/chart-options';
-import { CHART_COLORS } from '@/constants/chart-colors';
 import type { PeriodicBreakdown } from '@/core/periodic-engine';
 import { formatCurrency } from '@/utils/format';
 
@@ -19,12 +19,10 @@ interface PeriodicBreakdownChartProps {
   data: PeriodicBreakdown;
 }
 
-const FIXED_COLOR = CHART_COLORS.fixed;
-const FLEXIBLE_COLOR = CHART_COLORS.flexible;
-
 export default function PeriodicBreakdownChart({ data }: PeriodicBreakdownChartProps) {
   const total = data.fixedAmount + data.flexibleAmount;
-  const option = useMemo(() => buildPeriodicBreakdownOption(data), [data]);
+  const palette = useChartColors();
+  const option = useMemo(() => buildPeriodicBreakdownOption(data, palette), [data, palette]);
   const summary = useMemo(() => summarizePeriodicBreakdown(data), [data]);
 
   const heading = (
@@ -49,14 +47,14 @@ export default function PeriodicBreakdownChart({ data }: PeriodicBreakdownChartP
   const legend = [
     {
       label: '固定开销',
-      color: FIXED_COLOR,
+      color: palette.fixed,
       percent: fixedPercent,
       amount: data.fixedAmount,
       count: data.fixedCount,
     },
     {
       label: '弹性开销',
-      color: FLEXIBLE_COLOR,
+      color: palette.flexible,
       percent: flexiblePercent,
       amount: data.flexibleAmount,
       count: data.flexibleCount,

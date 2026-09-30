@@ -7,6 +7,8 @@ import type { Budget } from '@/types';
 import { STORAGE_KEYS, CATEGORIES } from '@/types';
 import { storage } from '@/storage/StorageAdapter';
 import { queuePersist } from '@/storage/persist-queue';
+import { restoreBudgets, restoreTotalBudgets } from '@/core/trash';
+import type { TrashEntry } from '@/core/trash';
 
 interface BudgetStore {
   /** 分类预算列表（每条带month字段） */
@@ -28,6 +30,8 @@ interface BudgetStore {
   removeBudget: (category: string, month: string) => void;
   /** 按月份批量移除预算设置（月度清理用，保留「所有月份通用」的预算） */
   removeByMonths: (months: string[]) => void;
+  /** 从回收站恢复一批被删掉的预算（按 分类+月份 去重；总预算只补缺失月份） */
+  restoreFromTrash: (entry: TrashEntry) => void;
   /** 设置指定月份的总预算 */
   setTotalBudget: (amount: number, month: string) => void;
   /** 获取指定月份的总预算 */
@@ -127,6 +131,14 @@ export const useBudgetStore = create<BudgetStore>((set, get) => ({
         totalBudgets: nextTotals,
       };
     });
+    get().persist();
+  },
+
+  restoreFromTrash: (entry) => {
+    set((state) => ({
+      budgets: restoreBudgets(entry, state.budgets),
+      totalBudgets: restoreTotalBudgets(entry, state.totalBudgets),
+    }));
     get().persist();
   },
 

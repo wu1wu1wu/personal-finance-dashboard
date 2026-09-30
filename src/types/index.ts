@@ -162,6 +162,7 @@ export const STORAGE_KEYS = {
   CATEGORY_FEEDBACK: 'pfd_cat_feedback',
   CAPTURE_RULES: 'pfd_capture_rules',
   CAPTURE_SETTINGS: 'pfd_capture_settings',
+  TRASH: 'pfd_trash',
 } as const;
 
 /** 分类定义 */

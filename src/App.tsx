@@ -11,6 +11,7 @@ import AddTransactionModal from '@/components/transactions/AddTransactionModal';
 import PageFallback from '@/components/ui/PageFallback';
 import PersistAlert from '@/components/ui/PersistAlert';
 import { useAutoLedger } from '@/hooks/useAutoLedger';
+import { useThemeEffect } from '@/theme/useTheme';
 
 // 页面按路由懒加载：图表（echarts）和 Excel 解析（xlsx）都不会进首屏 chunk，
 // 设置、明细、预算这些页也不用为此付下载与解析的代价。
@@ -23,6 +24,7 @@ const SettingsAutoLedger = lazy(() => import('@/pages/SettingsAutoLedger'));
 const SettingsCategories = lazy(() => import('@/pages/SettingsCategories'));
 const SettingsData = lazy(() => import('@/pages/SettingsData'));
 const SettingsImport = lazy(() => import('@/pages/SettingsImport'));
+const SettingsAppearance = lazy(() => import('@/pages/SettingsAppearance'));
 const Cleanup = lazy(() => import('@/pages/Cleanup'));
 
 const navItems = [
@@ -34,6 +36,7 @@ const navItems = [
 
 export default function App() {
   useAutoLedger();
+  useThemeEffect();
   const [showAddModal, setShowAddModal] = useState(false);
 
   return (
@@ -91,6 +94,7 @@ export default function App() {
               <Route path="/budget" element={<Budget />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/settings/import" element={<SettingsImport />} />
+              <Route path="/settings/appearance" element={<SettingsAppearance />} />
               <Route path="/settings/auto-ledger" element={<SettingsAutoLedger />} />
               <Route path="/settings/categories" element={<SettingsCategories />} />
               <Route path="/settings/data" element={<SettingsData />} />

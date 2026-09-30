@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useTransactionStore } from './transaction-store'
 import { flushPersist } from '@/storage/persist-queue'
 import { coverKey } from '@/storage/cover-store'
+import { createTrashEntry, TRASH_TTL_MS } from '@/core/trash'
 import { STORAGE_KEYS } from '@/types'
 import type { Transaction } from '@/types'
 
@@ -153,13 +154,121 @@ describe('封面图迁移', () => {
     expect(JSON.parse(fake[STORAGE_KEYS.TRANSACTIONS] as string)[0].coverImage).toBe('')
   })
 
-  it('删除交易时把封面键一起清掉', async () => {
+  it('删除交易时不立即清封面（撤销还要用），进回收站后才可能被清', async () => {
     fake[coverKey('t1')] = JSON.stringify('data:image/jpeg;base64,AAAA')
-    useTransactionStore.setState({ transactions: [txn({ id: 't1' })], loaded: true })
+    useTransactionStore.setState({ transactions: [txn({ id: 't1' })], trash: [], loaded: true })
 
     useTransactionStore.getState().deleteTransaction('t1')
 
+    expect(fake[coverKey('t1')]).toBeDefined()
+    expect(useTransactionStore.getState().trash).toHaveLength(1)
+  })
+})
+
+describe('最近删除（回收站）', () => {
+  it('删除后进入回收站，记录里的交易原样保存', async () => {
+    useTransactionStore.setState({
+      transactions: [txn({ id: 't1', counterparty: '美团' })],
+      trash: [],
+      loaded: true,
+    })
+
+    useTransactionStore.getState().deleteTransaction('t1')
+
+    const { transactions, trash } = useTransactionStore.getState()
+    expect(transactions).toHaveLength(0)
+    expect(trash).toHaveLength(1)
+    expect(trash[0].reason).toBe('single')
+    expect(trash[0].label).toBe('美团')
+    expect(trash[0].transactions.map((t) => t.id)).toEqual(['t1'])
+  })
+
+  it('撤销后交易回到库里，id 不变，回收站条目消失', async () => {
+    useTransactionStore.setState({ transactions: [txn({ id: 't1' })], trash: [], loaded: true })
+    useTransactionStore.getState().deleteTransaction('t1')
+    const entryId = useTransactionStore.getState().trash[0].id
+
+    useTransactionStore.getState().restoreTrashEntry(entryId)
+
+    const { transactions, trash } = useTransactionStore.getState()
+    expect(transactions.map((t) => t.id)).toEqual(['t1'])
+    expect(trash).toHaveLength(0)
+  })
+
+  it('撤销时已存在的同 id 记录不被覆盖', async () => {
+    useTransactionStore.setState({ transactions: [txn({ id: 't1', amount: 23 })], trash: [], loaded: true })
+    useTransactionStore.getState().deleteTransaction('t1')
+    const entryId = useTransactionStore.getState().trash[0].id
+    // 模拟用户删除后又手动补了一笔（同 id 极不可能，但逻辑上不能覆盖）
+    useTransactionStore.setState({ transactions: [txn({ id: 't1', amount: 55 })] })
+
+    useTransactionStore.getState().restoreTrashEntry(entryId)
+
+    expect(useTransactionStore.getState().transactions).toHaveLength(1)
+    expect(useTransactionStore.getState().transactions[0].amount).toBe(55)
+  })
+
+  it('按月份清理会记成一批，并带走同批删掉的预算', async () => {
+    useTransactionStore.setState({
+      transactions: [
+        txn({ id: 'a', transactionTime: '2026-08-05 10:00:00' }),
+        txn({ id: 'b', transactionTime: '2026-09-05 10:00:00' }),
+        txn({ id: 'c', transactionTime: '2026-10-05 10:00:00' }),
+      ],
+      trash: [],
+      loaded: true,
+    })
+
+    const removed = useTransactionStore.getState().deleteByMonths(['2026-08', '2026-09'], {
+      label: '8 月、9 月',
+      budgets: [{ category: '餐饮美食', monthlyLimit: 1000, color: '#EF4444', month: '2026-08' }],
+      totalBudgets: { '2026-08': 3000 },
+    })
+
+    const { transactions, trash } = useTransactionStore.getState()
+    expect(removed).toBe(2)
+    expect(transactions.map((t) => t.id)).toEqual(['c'])
+    expect(trash[0].reason).toBe('months')
+    expect(trash[0].label).toBe('8 月、9 月')
+    expect(trash[0].budgets).toHaveLength(1)
+    expect(trash[0].totalBudgets).toEqual({ '2026-08': 3000 })
+  })
+
+  it('清空回收站会把里面的封面图一并清掉', async () => {
+    fake[coverKey('t1')] = JSON.stringify('data:image/jpeg;base64,AAAA')
+    useTransactionStore.setState({ transactions: [txn({ id: 't1' })], trash: [], loaded: true })
+    useTransactionStore.getState().deleteTransaction('t1')
+
+    useTransactionStore.getState().clearTrash()
+
+    expect(useTransactionStore.getState().trash).toHaveLength(0)
     expect(fake[coverKey('t1')]).toBeUndefined()
+  })
+
+  it('加载时剪掉过期批次，并清掉它们的封面', async () => {
+    const expired = createTrashEntry({
+      id: 'old',
+      reason: 'single',
+      label: '很久以前',
+      transactions: [txn({ id: 'gone' })],
+      now: new Date(Date.now() - TRASH_TTL_MS - 1000),
+    })
+    fake[STORAGE_KEYS.TRASH] = JSON.stringify([expired])
+    fake[coverKey('gone')] = JSON.stringify('data:image/jpeg;base64,AAAA')
+
+    await useTransactionStore.getState().loadFromStorage()
+
+    expect(useTransactionStore.getState().trash).toHaveLength(0)
+    expect(fake[coverKey('gone')]).toBeUndefined()
+  })
+
+  it('回收站与交易一起落盘', async () => {
+    useTransactionStore.setState({ transactions: [txn({ id: 't1' })], trash: [], loaded: true })
+    useTransactionStore.getState().deleteTransaction('t1')
+
+    await flushPersist('transactions')
+
+    expect(JSON.parse(fake[STORAGE_KEYS.TRASH] as string)).toHaveLength(1)
   })
 })
 

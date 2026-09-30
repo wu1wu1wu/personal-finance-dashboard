@@ -26,6 +26,33 @@
   --color-ink-subtle: #6b7280;
 }
 
+/*
+ * 深色主题：覆盖同一批语义化令牌，组件层不需要任何 dark: 变体。
+ *
+ * 取值同样是校过的（正文对深色 canvas 与 surface 都 ≥4.5:1），
+ * 由 src/utils/contrast.test.ts 的深色断言守住。
+ * 注意层级方向相反：浅色下 ink 最深，深色下 ink 最亮。
+ */
+.dark {
+  color-scheme: dark;
+
+  --color-brand: #60a5fa;
+  --color-brand-soft: #16233a;
+  --color-expense: #f87171;
+  --color-expense-soft: #2a1618;
+  --color-income: #34d399;
+  --color-income-soft: #12291f;
+  --color-alert: #fbbf24;
+  --color-alert-soft: #2a2113;
+
+  --color-canvas: #0f1217;
+  --color-surface: #171b22;
+  --color-line: #262c35;
+  --color-ink: #e9edf2;
+  --color-ink-muted: #aab4c0;
+  --color-ink-subtle: #8b95a3;
+}
+
 @layer base {
   html {
     -webkit-tap-highlight-color: transparent;
