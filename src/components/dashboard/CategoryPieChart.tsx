@@ -7,9 +7,11 @@
 
 import { useMemo } from 'react';
 import EChart from '@/components/charts/EChart';
+import { useChartLabels } from '@/components/charts/useChartLabels';
 import { useChartColors } from '@/components/charts/useChartColors';
 import { buildPieOption } from '@/components/dashboard/chart-options';
 import type { CategoryBreakdownPoint } from '@/core/dashboard-engine';
+import { categoryLabel, useLocale, useT } from '@/i18n';
 import { formatCurrency, formatCurrencyShort } from '@/utils/format';
 
 interface CategoryPieChartProps {
@@ -21,17 +23,24 @@ interface CategoryPieChartProps {
 export default function CategoryPieChart({ data, onCategoryClick }: CategoryPieChartProps) {
   const total = data.reduce((sum, d) => sum + d.amount, 0);
   const palette = useChartColors();
-  const option = useMemo(() => buildPieOption(data, palette), [data, palette]);
+  const labels = useChartLabels();
+  const { t } = useT();
+  const locale = useLocale();
+  const option = useMemo(() => buildPieOption(data, palette, labels), [data, palette, labels]);
 
-  const handleChartClick = (params: { name?: string }) => {
-    if (onCategoryClick && params.name) onCategoryClick(params.name);
+  const handleChartClick = (params: { name?: string; data?: { category?: string } }) => {
+    // 扇区名是本地化过的，钻取必须用 category 原值
+    const category = params.data?.category ?? params.name;
+    if (onCategoryClick && category) onCategoryClick(category);
   };
 
   if (data.length === 0) {
     return (
       <section className="rounded-2xl border border-line bg-surface p-4">
-        <h2 className="text-sm font-semibold text-ink">分类占比</h2>
-        <p className="py-10 text-center text-sm text-ink-subtle">本月暂无支出</p>
+        <h2 className="text-sm font-semibold text-ink">{t('dashboard.categoryPieTitle')}</h2>
+        <p className="py-10 text-center text-sm text-ink-subtle">
+          {t('dashboard.noExpenseThisMonth')}
+        </p>
       </section>
     );
   }
@@ -39,8 +48,10 @@ export default function CategoryPieChart({ data, onCategoryClick }: CategoryPieC
   return (
     <section className="rounded-2xl border border-line bg-surface p-4">
       <div className="mb-2 flex items-baseline justify-between">
-        <h2 className="text-sm font-semibold text-ink">分类占比</h2>
-        {onCategoryClick && <span className="text-xs text-ink-subtle">点击查看明细</span>}
+        <h2 className="text-sm font-semibold text-ink">{t('dashboard.categoryPieTitle')}</h2>
+        {onCategoryClick && (
+          <span className="text-xs text-ink-subtle">{t('dashboard.clickForDetail')}</span>
+        )}
       </div>
 
       {/* 宽屏并排，窄屏上下堆叠，避免卡片拉出大片空白 */}
@@ -53,7 +64,7 @@ export default function CategoryPieChart({ data, onCategoryClick }: CategoryPieC
         >
           <EChart option={option} style={{ height: 148, width: 148 }} onEvents={{ click: handleChartClick }} />
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-[11px] text-ink-subtle">本月支出</span>
+            <span className="text-[11px] text-ink-subtle">{t('dashboard.monthExpense')}</span>
             <span className="tnum text-sm font-semibold text-ink">
               {formatCurrencyShort(total)}
             </span>
@@ -70,7 +81,9 @@ export default function CategoryPieChart({ data, onCategoryClick }: CategoryPieC
                 style={{ backgroundColor: d.color }}
                 aria-hidden="true"
               />
-              <span className="min-w-0 flex-1 truncate text-sm text-ink">{d.category}</span>
+              <span className="min-w-0 flex-1 truncate text-sm text-ink">
+                {categoryLabel(locale, d.category)}
+              </span>
               <span className="shrink-0 text-xs text-ink-subtle tnum">{d.percentage}%</span>
               <span className="w-[84px] shrink-0 text-right text-sm font-medium text-ink tnum">
                 {formatCurrency(d.amount)}

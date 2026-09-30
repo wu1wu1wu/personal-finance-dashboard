@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { ChartPie, Check, Pencil, Plus, Trash, Wallet, X } from 'lucide-react';
 import { useBudgetStore } from '@/stores/budget-store';
 import { CATEGORIES } from '@/types';
+import { categoryLabel, formatMonthForLocale, useLocale, useT } from '@/i18n';
 import { formatCurrency } from '@/utils/format';
 import { cn } from '@/utils/cn';
 import CategoryIcon from '@/components/ui/CategoryIcon';
@@ -22,6 +23,10 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
   const { budgets, getTotalBudget, setBudget, removeBudget, setTotalBudget, loadFromStorage } =
     useBudgetStore();
   const setPerTransactionLimit = useBudgetStore((s) => s.setPerTransactionLimit);
+  const { t } = useT();
+  const locale = useLocale();
+  // 月份在界面上按语言显示（"2026年7月" / "July 2026"），store 里仍然用 "2026-07"
+  const monthLabel = formatMonthForLocale(locale, month);
 
   const [showAdd, setShowAdd] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -103,7 +108,7 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
       <section className="rounded-xl bg-canvas p-4">
         <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-ink">
           <Wallet size={15} className="text-ink-subtle" aria-hidden="true" />
-          总月度预算
+          {t('budget.totalMonthly')}
         </h2>
 
         {currentTotal > 0 && !totalInput ? (
@@ -111,26 +116,26 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
             <span className="tnum text-lg font-semibold text-ink">
               {formatCurrency(currentTotal)}
             </span>
-            <span className="text-xs text-ink-subtle">/ {month}</span>
+            <span className="text-xs text-ink-subtle">/ {monthLabel}</span>
             <button
               type="button"
               onClick={() => setTotalInput(String(currentTotal))}
               className="text-xs text-brand hover:underline"
             >
-              修改
+              {t('budget.change')}
             </button>
             <button
               type="button"
               onClick={() => setTotalBudget(0, month)}
               className="text-xs text-ink-subtle hover:text-expense"
             >
-              清除
+              {t('common.clear')}
             </button>
           </div>
         ) : (
           <div className="flex gap-2">
             <label className="sr-only" htmlFor="budget-total">
-              总月度预算金额
+              {t('budget.totalAmountLabel')}
             </label>
             <input
               id="budget-total"
@@ -140,7 +145,7 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
               autoComplete="off"
               value={totalInput}
               onChange={(e) => setTotalInput(e.target.value)}
-              placeholder={`设置 ${month} 的总预算`}
+              placeholder={t('budget.totalPlaceholder', { month: monthLabel })}
               min="0"
               step="100"
               className={cn(INPUT_CLASS, 'flex-1')}
@@ -151,13 +156,13 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
               disabled={!totalInput || Number.parseFloat(totalInput) <= 0}
               className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              保存
+              {t('common.save')}
             </button>
             {currentTotal > 0 && (
               <button
                 type="button"
                 onClick={() => setTotalInput('')}
-                aria-label="取消修改"
+                aria-label={t('budget.cancelEdit')}
                 className="rounded-lg border border-line px-3 py-2 text-sm text-ink-muted transition-colors hover:bg-surface"
               >
                 <X size={15} aria-hidden="true" />
@@ -172,7 +177,7 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
         <div className="mb-3 flex items-center justify-between gap-3">
           <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ink">
             <ChartPie size={15} className="text-ink-subtle" aria-hidden="true" />
-            {month} 分类预算
+            {t('budget.categoryBudgetForMonth', { month: monthLabel })}
           </h2>
           {!showAdd && availableCategories.length > 0 && (
             <button
@@ -181,7 +186,7 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
               className="flex min-h-11 items-center gap-1 rounded-lg bg-brand px-3 text-xs font-medium text-white transition-colors hover:bg-brand/90"
             >
               <Plus size={13} aria-hidden="true" />
-              添加分类预算
+              {t('budget.addCategoryBudget')}
             </button>
           )}
         </div>
@@ -189,7 +194,7 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
         {showAdd && (
           <div className="mb-3 space-y-2 rounded-xl bg-brand-soft p-3">
             <label className="sr-only" htmlFor="budget-category">
-              选择分类
+              {t('budget.selectCategory')}
             </label>
             <select
               id="budget-category"
@@ -197,16 +202,16 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
               onChange={(e) => setSelectedCategory(e.target.value)}
               className={INPUT_CLASS}
             >
-              <option value="">选择分类</option>
+              <option value="">{t('budget.selectCategory')}</option>
               {availableCategories.map((cat) => (
                 <option key={cat.name} value={cat.name}>
-                  {cat.name}
+                  {categoryLabel(locale, cat.name)}
                 </option>
               ))}
             </select>
 
             <label className="sr-only" htmlFor="budget-limit">
-              预算上限
+              {t('budget.monthlyLimitLabel')}
             </label>
             <input
               id="budget-limit"
@@ -216,14 +221,14 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
               autoComplete="off"
               value={newLimit}
               onChange={(e) => setNewLimit(e.target.value)}
-              placeholder={`${month} 的月度预算（元）`}
+              placeholder={t('budget.monthlyPlaceholder', { month: monthLabel })}
               min="0"
               step="100"
               className={INPUT_CLASS}
             />
 
             <label className="sr-only" htmlFor="budget-max-per-txn">
-              单笔消费上限
+              {t('budget.maxPerTxnLabel')}
             </label>
             <input
               id="budget-max-per-txn"
@@ -233,7 +238,7 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
               autoComplete="off"
               value={newMaxPerTxn}
               onChange={(e) => setNewMaxPerTxn(e.target.value)}
-              placeholder="单笔消费上限（选填，超过会提醒）"
+              placeholder={t('budget.maxPerTxnPlaceholder')}
               min="0"
               step="50"
               className={INPUT_CLASS}
@@ -250,7 +255,7 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
                 }
                 className="rounded-lg bg-brand px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                保存
+                {t('common.save')}
               </button>
               <button
                 type="button"
@@ -262,7 +267,7 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
                 }}
                 className="rounded-lg bg-surface px-4 py-1.5 text-sm text-ink-muted transition-colors hover:text-ink"
               >
-                取消
+                {t('common.cancel')}
               </button>
             </div>
           </div>
@@ -270,13 +275,16 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
 
         {monthBudgets.length === 0 ? (
           <div className="rounded-xl border border-line bg-surface py-8 text-center">
-            <p className="text-sm text-ink-muted">{month} 尚未设置分类预算</p>
-            <p className="mt-1 text-xs text-ink-subtle">为常用分类设定上限，超支时自动提醒</p>
+            <p className="text-sm text-ink-muted">
+              {t('budget.noCategoryBudget', { month: monthLabel })}
+            </p>
+            <p className="mt-1 text-xs text-ink-subtle">{t('budget.noCategoryBudgetHint')}</p>
           </div>
         ) : (
           <ul className="space-y-2">
             {monthBudgets.map((budget) => {
               const cat = getCategoryInfo(budget.category);
+              const catLabel = categoryLabel(locale, budget.category);
               const isEditing = editingCategory === budget.category;
 
               return (
@@ -289,13 +297,13 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
                     style={{ backgroundColor: `${cat.color}18`, color: cat.color }}
                   >
                     <CategoryIcon category={budget.category} size={12} />
-                    {budget.category}
+                    {catLabel}
                   </span>
 
                   {isEditing ? (
                     <div className="flex flex-1 flex-col gap-2 sm:flex-row">
                       <label className="sr-only" htmlFor={`edit-${budget.category}`}>
-                        {budget.category} 月度预算
+                        {t('budget.categoryMonthlyLabel', { category: catLabel })}
                       </label>
                       <input
                         id={`edit-${budget.category}`}
@@ -309,14 +317,14 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
                           if (e.key === 'Enter') handleSaveEdit();
                           if (e.key === 'Escape') setEditingCategory(null);
                         }}
-                        placeholder="月度预算"
+                        placeholder={t('budget.monthlyBudgetPlaceholder')}
                         min="0"
                         step="100"
                         className={cn(INPUT_CLASS, 'flex-1')}
                       />
 
                       <label className="sr-only" htmlFor={`edit-max-${budget.category}`}>
-                        {budget.category} 单笔消费上限
+                        {t('budget.categoryMaxPerTxnLabel', { category: catLabel })}
                       </label>
                       <input
                         id={`edit-max-${budget.category}`}
@@ -330,7 +338,7 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
                           if (e.key === 'Enter') handleSaveEdit();
                           if (e.key === 'Escape') setEditingCategory(null);
                         }}
-                        placeholder="单笔上限（选填）"
+                        placeholder={t('budget.maxPerTxnShortPlaceholder')}
                         min="0"
                         step="50"
                         className={cn(INPUT_CLASS, 'flex-1')}
@@ -340,7 +348,7 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
                         <button
                           type="button"
                           onClick={handleSaveEdit}
-                          aria-label="保存"
+                          aria-label={t('common.save')}
                           className="rounded-lg bg-brand px-2.5 py-2 text-white transition-colors hover:bg-brand/90"
                         >
                           <Check size={14} aria-hidden="true" />
@@ -348,7 +356,7 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
                         <button
                           type="button"
                           onClick={() => setEditingCategory(null)}
-                          aria-label="取消"
+                          aria-label={t('common.cancel')}
                           className="rounded-lg bg-canvas px-2.5 text-ink-muted transition-colors hover:text-ink"
                         >
                           <X size={14} aria-hidden="true" />
@@ -360,13 +368,17 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
                       <span className="min-w-0 flex-1">
                         <span className="tnum block truncate text-sm font-medium text-ink">
                           {budget.monthlyLimit > 0
-                            ? `${formatCurrency(budget.monthlyLimit)}/月`
-                            : '未设月度预算'}
+                            ? t('budget.perMonth', {
+                                amount: formatCurrency(budget.monthlyLimit),
+                              })
+                            : t('budget.noMonthlyLimit')}
                         </span>
                         <span className="tnum mt-0.5 block truncate text-[11px] text-ink-subtle">
                           {budget.maxPerTransaction
-                            ? `单笔不超过 ${formatCurrency(budget.maxPerTransaction)}`
-                            : '未设单笔上限'}
+                            ? t('budget.maxPerTxnValue', {
+                                amount: formatCurrency(budget.maxPerTransaction),
+                              })
+                            : t('budget.noMaxPerTxn')}
                         </span>
                       </span>
                       <div className="flex shrink-0 gap-1">
@@ -379,7 +391,7 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
                               budget.maxPerTransaction,
                             )
                           }
-                          aria-label={`修改 ${budget.category} 预算`}
+                          aria-label={t('budget.editBudget', { category: catLabel })}
                           className="flex h-11 w-11 items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-canvas hover:text-brand"
                         >
                           <Pencil size={14} aria-hidden="true" />
@@ -387,7 +399,7 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
                         <button
                           type="button"
                           onClick={() => removeBudget(budget.category, month)}
-                          aria-label={`删除 ${budget.category} 预算`}
+                          aria-label={t('budget.deleteBudget', { category: catLabel })}
                           className="flex h-11 w-11 items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-expense-soft hover:text-expense"
                         >
                           <Trash size={14} aria-hidden="true" />

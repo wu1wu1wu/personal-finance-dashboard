@@ -7,9 +7,11 @@
 
 import { Link } from 'react-router-dom';
 import { TriangleAlert } from 'lucide-react';
+import { useT } from '@/i18n';
 import { usePersistStatus } from '@/storage/persist-queue';
 
 export default function PersistAlert() {
+  const { t } = useT();
   const error = usePersistStatus((s) => s.error);
   if (!error) return null;
 
@@ -21,14 +23,14 @@ export default function PersistAlert() {
       <div className="mx-auto flex max-w-5xl items-start gap-2.5">
         <TriangleAlert size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
         <p className="min-w-0 flex-1 text-sm">
-          <span className="font-medium">数据没能保存到本机：</span>
+          <span className="font-medium">{t('common.persist.title')}</span>
           {error}
         </p>
         <Link
           to="/settings/data"
           className="shrink-0 whitespace-nowrap text-sm font-medium underline"
         >
-          去导出备份
+          {t('common.persist.action')}
         </Link>
       </div>
     </div>

@@ -18,6 +18,8 @@ import type { CaptureRecord } from '@/plugins/AutoLedger';
 import { parseCapturedTransaction } from '@/core/transaction-capture';
 import type { CaptureRule, CaptureSettings } from '@/types';
 import { useCaptureRuleStore } from '@/stores/capture-rule-store';
+import { useLocale, useT } from '@/i18n';
+import type { Locale } from '@/i18n';
 import { cn } from '@/utils/cn';
 import CaptureRuleEditor from '@/components/settings/CaptureRuleEditor';
 
@@ -27,9 +29,9 @@ const WECHAT_PACKAGE = 'com.tencent.mm';
 const CARD = 'rounded-2xl border border-line bg-surface p-4';
 const SECTION_TITLE = 'mb-3 flex items-center gap-1.5 text-sm font-semibold text-ink';
 
-function formatTime(value: number): string {
-  if (!value) return '暂无';
-  return new Date(value).toLocaleString('zh-CN', { hour12: false });
+function formatTime(value: number, locale: Locale, emptyLabel: string): string {
+  if (!value) return emptyLabel;
+  return new Date(value).toLocaleString(locale, { hour12: false });
 }
 
 /** 单条诊断记录：事件时间 + 来源包名 + 解析结果 + 原文 */
@@ -42,28 +44,32 @@ function CaptureRow({
   rules: CaptureRule[];
   settings: CaptureSettings;
 }) {
+  const { t } = useT();
+  const locale = useLocale();
   const parsed = parseCapturedTransaction(item.text, {
     packageName: item.package,
     rules,
     settings,
   });
   const isWechat = item.package === WECHAT_PACKAGE;
+  const emptyTime = t('settingsRules.autoLedger.time.empty');
 
   let badge;
   if (parsed) {
     badge = (
       <span className="inline-flex items-center gap-0.5 text-income">
-        <CircleCheck size={11} aria-hidden="true" />已识别 ¥{Math.abs(parsed.amount)}
+        <CircleCheck size={11} aria-hidden="true" />
+        {t('settingsRules.autoLedger.recognized', { amount: Math.abs(parsed.amount) })}
       </span>
     );
   } else {
-    badge = <span className="text-alert">交易筛选通过 · 解析失败</span>;
+    badge = <span className="text-alert">{t('settingsRules.autoLedger.parseFailed')}</span>;
   }
 
   return (
     <div className="mt-1.5 border-t border-line pt-1.5 first:mt-0 first:border-0 first:pt-0">
       <div className="flex flex-wrap items-center gap-2 text-[11px] text-ink-muted">
-        <span className="tnum">{formatTime(item.time)}</span>
+        <span className="tnum">{formatTime(item.time, locale, emptyTime)}</span>
         <span
           className={cn(
             'rounded px-1 font-medium',
@@ -77,7 +83,9 @@ function CaptureRow({
       <p className="mt-1 break-all text-ink">{item.text}</p>
       {item.capturedAt && item.capturedAt !== item.time && (
         <p className="mt-0.5 text-[10px] text-ink-subtle">
-          App 捕获于 {formatTime(item.capturedAt)}
+          {t('settingsRules.autoLedger.time.capturedAt', {
+            time: formatTime(item.capturedAt, locale, emptyTime),
+          })}
         </p>
       )}
     </div>
@@ -85,20 +93,23 @@ function CaptureRow({
 }
 
 function StatusIcon({ granted }: { granted: boolean }) {
+  const { t } = useT();
   return granted ? (
     <span className="inline-flex shrink-0 items-center gap-1 text-sm text-income">
       <CircleCheck size={14} aria-hidden="true" />
-      已开启
+      {t('settingsRules.autoLedger.granted')}
     </span>
   ) : (
     <span className="inline-flex shrink-0 items-center gap-1 text-sm text-ink-subtle">
       <CircleX size={14} aria-hidden="true" />
-      未开启
+      {t('settingsRules.autoLedger.notGranted')}
     </span>
   );
 }
 
 export default function AutoLedgerSettings() {
+  const { t } = useT();
+  const locale = useLocale();
   const [smsGranted, setSmsGranted] = useState<boolean | null>(null);
   const [notifEnabled, setNotifEnabled] = useState(false);
   const [batteryIgnoring, setBatteryIgnoring] = useState<boolean | null>(null);
@@ -166,27 +177,29 @@ export default function AutoLedgerSettings() {
       <section className={CARD}>
         <h2 className={SECTION_TITLE}>
           <Smartphone size={16} className="text-ink-subtle" aria-hidden="true" />
-          自动记账
+          {t('settingsRules.autoLedger.title')}
         </h2>
-        <p className="text-sm text-ink-muted">自动记账只支持安卓 App，请安装打包后的 App 使用。</p>
+        <p className="text-sm text-ink-muted">{t('settingsRules.autoLedger.androidOnly')}</p>
       </section>
     );
   }
 
+  const emptyTime = t('settingsRules.autoLedger.time.empty');
+
   const permissionRows = [
     {
-      label: '短信权限',
-      hint: '读取银行卡交易短信',
+      label: t('settingsRules.autoLedger.permission.sms'),
+      hint: t('settingsRules.autoLedger.permission.smsHint'),
       granted: smsGranted === true,
       action: handleRequestSms,
-      actionLabel: '去授权',
+      actionLabel: t('settingsRules.autoLedger.permission.smsAction'),
     },
     {
-      label: '通知使用权',
-      hint: '读取微信、支付宝和银行通知',
+      label: t('settingsRules.autoLedger.permission.notification'),
+      hint: t('settingsRules.autoLedger.permission.notificationHint'),
       granted: notifEnabled,
       action: handleOpenNotif,
-      actionLabel: '去开启',
+      actionLabel: t('settingsRules.autoLedger.permission.notificationAction'),
     },
   ];
 
@@ -195,7 +208,7 @@ export default function AutoLedgerSettings() {
       <section className={CARD}>
         <h2 className={SECTION_TITLE}>
           <Smartphone size={16} className="text-ink-subtle" aria-hidden="true" />
-          授权状态
+          {t('settingsRules.autoLedger.permission.title')}
         </h2>
         <div className="space-y-4">
           {permissionRows.map((row) => (
@@ -219,24 +232,26 @@ export default function AutoLedgerSettings() {
           ))}
         </div>
         <p className="mt-4 rounded-xl bg-canvas px-3 py-2.5 text-xs leading-5 text-ink-muted">
-          通知监听保持连接时会实时读取，不要求支付通知一直停留。只有服务断开后的补扫，才依赖通知栏中仍存在的消息。
+          {t('settingsRules.autoLedger.notificationNote')}
         </p>
       </section>
 
       <section className={CARD}>
         <h2 className={SECTION_TITLE}>
           <BatteryCharging size={16} className="text-ink-subtle" aria-hidden="true" />
-          后台运行
+          {t('settingsRules.autoLedger.battery.title')}
         </h2>
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-sm font-medium text-ink">电池策略</p>
+            <p className="text-sm font-medium text-ink">
+              {t('settingsRules.autoLedger.battery.policy')}
+            </p>
             <p className="mt-0.5 text-xs text-ink-subtle">
               {batteryIgnoring === null
-                ? '正在检测…'
+                ? t('settingsRules.autoLedger.battery.checking')
                 : batteryIgnoring
-                  ? '已允许后台持续运行'
-                  : '建议改为“无限制”，避免系统断连'}
+                  ? t('settingsRules.autoLedger.battery.allowed')
+                  : t('settingsRules.autoLedger.battery.recommend')}
             </p>
           </div>
           {batteryIgnoring ? (
@@ -247,7 +262,7 @@ export default function AutoLedgerSettings() {
               onClick={handleOpenBattery}
               className="shrink-0 rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-canvas"
             >
-              打开设置
+              {t('settingsRules.autoLedger.battery.openSettings')}
             </button>
           )}
         </div>
@@ -256,7 +271,7 @@ export default function AutoLedgerSettings() {
       <section className={CARD}>
         <h2 className={SECTION_TITLE}>
           <RefreshCw size={16} className="text-ink-subtle" aria-hidden="true" />
-          消息读取规则
+          {t('settingsRules.autoLedger.captureRules.title')}
         </h2>
         <CaptureRuleEditor />
       </section>
@@ -274,7 +289,7 @@ export default function AutoLedgerSettings() {
         >
           <span className="flex items-center gap-1.5 text-sm font-semibold text-ink">
             <Stethoscope size={16} className="text-ink-subtle" aria-hidden="true" />
-            诊断信息
+            {t('settingsRules.autoLedger.diagnostics.title')}
           </span>
           <ChevronDown
             size={17}
@@ -289,50 +304,78 @@ export default function AutoLedgerSettings() {
         {showDiagnostics && (
           <div className="mt-4 space-y-2 border-t border-line pt-4 text-xs text-ink-muted">
             <div className="flex items-center justify-between gap-2">
-              <span>通知监听连接</span>
+              <span>{t('settingsRules.autoLedger.diagnostics.connection')}</span>
               {debugInfo == null ? (
-                <span>检测中…</span>
+                <span>{t('settingsRules.autoLedger.diagnostics.checking')}</span>
               ) : debugInfo.notificationConnected ? (
                 <span className="inline-flex items-center gap-0.5 text-income">
-                  <CircleCheck size={12} aria-hidden="true" />已连接
+                  <CircleCheck size={12} aria-hidden="true" />
+                  {t('settingsRules.autoLedger.diagnostics.connected')}
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-0.5 text-expense">
-                  <CircleX size={12} aria-hidden="true" />未连接
+                  <CircleX size={12} aria-hidden="true" />
+                  {t('settingsRules.autoLedger.diagnostics.disconnected')}
                 </span>
               )}
             </div>
-            <p>最后连接：{formatTime(debugInfo?.lastConnectedAt ?? 0)}</p>
-            <p>最后收到通知：{formatTime(debugInfo?.lastNotificationAt ?? 0)}</p>
-            <p>微信最近到达：{formatTime(debugInfo?.wechatLastSeenAt ?? 0)}</p>
-            <p>最后识别交易：{formatTime(debugInfo?.lastTransactionAt ?? 0)}</p>
-            <p>待处理队列：{debugInfo ? `${debugInfo.queueSize} 条` : '检测中…'}</p>
-            <p>已过滤非交易通知：{debugInfo?.filteredCount ?? 0} 条</p>
+            <p>
+              {t('settingsRules.autoLedger.diagnostics.lastConnected', {
+                time: formatTime(debugInfo?.lastConnectedAt ?? 0, locale, emptyTime),
+              })}
+            </p>
+            <p>
+              {t('settingsRules.autoLedger.diagnostics.lastNotification', {
+                time: formatTime(debugInfo?.lastNotificationAt ?? 0, locale, emptyTime),
+              })}
+            </p>
+            <p>
+              {t('settingsRules.autoLedger.diagnostics.wechatLastSeen', {
+                time: formatTime(debugInfo?.wechatLastSeenAt ?? 0, locale, emptyTime),
+              })}
+            </p>
+            <p>
+              {t('settingsRules.autoLedger.diagnostics.lastTransaction', {
+                time: formatTime(debugInfo?.lastTransactionAt ?? 0, locale, emptyTime),
+              })}
+            </p>
+            <p>
+              {debugInfo
+                ? t('settingsRules.autoLedger.diagnostics.queueSize', { count: debugInfo.queueSize })
+                : t('settingsRules.autoLedger.diagnostics.checking')}
+            </p>
+            <p>
+              {t('settingsRules.autoLedger.diagnostics.filtered', {
+                count: debugInfo?.filteredCount ?? 0,
+              })}
+            </p>
 
             <div className="flex flex-wrap gap-3 pt-1">
               <button type="button" onClick={handleRescan} className="text-brand hover:underline">
-                补扫通知栏
+                {t('settingsRules.autoLedger.diagnostics.rescan')}
               </button>
               <button
                 type="button"
                 onClick={() => void refreshStatus()}
                 className="text-brand hover:underline"
               >
-                刷新
+                {t('settingsRules.autoLedger.diagnostics.refresh')}
               </button>
               <button
                 type="button"
                 onClick={handleClearDebug}
                 className="text-ink-subtle hover:underline"
               >
-                清空诊断记录
+                {t('settingsRules.autoLedger.diagnostics.clear')}
               </button>
             </div>
 
             {debugInfo && debugInfo.recent.length > 0 && (
               <div className="pt-2">
                 <p className="mb-1 font-medium text-ink">
-                  最近识别到的 {debugInfo.recent.length} 条交易通知
+                  {t('settingsRules.autoLedger.diagnostics.recent', {
+                    count: debugInfo.recent.length,
+                  })}
                 </p>
                 <div className="max-h-72 overflow-y-auto rounded-lg border border-line bg-surface p-2">
                   {debugInfo.recent.map((item, i) => (

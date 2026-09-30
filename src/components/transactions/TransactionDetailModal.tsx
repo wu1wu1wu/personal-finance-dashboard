@@ -13,6 +13,7 @@ import { TRANSFER_CATEGORY } from '@/core/transaction-query';
 import { formatCurrency } from '@/utils/format';
 import { cn } from '@/utils/cn';
 import { compressImage } from '@/utils/image';
+import { categoryLabel, transactionTypeLabel, useLocale, useT } from '@/i18n';
 import Modal from '@/components/ui/Modal';
 import CategoryIcon from '@/components/ui/CategoryIcon';
 import CategoryTag from '@/components/transactions/CategoryTag';
@@ -52,6 +53,8 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
   const updateTransaction = useTransactionStore((s) => s.updateTransaction);
   const transactions = useTransactionStore((s) => s.transactions);
   const recordFeedback = useClassificationStore((s) => s.recordFeedback);
+  const { t } = useT();
+  const locale = useLocale();
   const [confirming, setConfirming] = useState(false);
 
   const [themeInput, setThemeInput] = useState(txn.theme);
@@ -132,26 +135,35 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
   const overLimit = limit !== undefined && isExpense && !isTransfer && txn.amount > limit;
 
   const rows: { label: string; value: string }[] = [
-    { label: '交易时间', value: txn.transactionTime || '—' },
-    { label: '收支类型', value: txn.transactionType || '—' },
-    { label: '交易对方', value: txn.counterparty || '—' },
-    { label: '商品说明', value: txn.description || '—' },
-    { label: '支付方式', value: txn.paymentMethod || '—' },
-    { label: '交易状态', value: txn.paymentStatus || '—' },
-    { label: '交易单号', value: txn.transactionNo || '—' },
+    { label: t('transactions.field.transactionTime'), value: txn.transactionTime || '—' },
     {
-      label: '分类来源',
+      label: t('transactions.field.transactionType'),
+      value: txn.transactionType ? transactionTypeLabel(locale, txn.transactionType) : '—',
+    },
+    { label: t('transactions.field.counterparty'), value: txn.counterparty || '—' },
+    { label: t('transactions.field.itemDescription'), value: txn.description || '—' },
+    { label: t('transactions.field.paymentMethod'), value: txn.paymentMethod || '—' },
+    { label: t('transactions.field.paymentStatus'), value: txn.paymentStatus || '—' },
+    { label: t('transactions.field.transactionNo'), value: txn.transactionNo || '—' },
+    {
+      label: t('transactions.field.categorySource'),
       value:
         txn.categorySource === 'manual'
-          ? '手动指定'
+          ? t('transactions.source.manual')
           : txn.categorySource === 'rule'
-            ? '自定义规则'
+            ? t('transactions.source.rule')
             : txn.categorySource === 'guessed'
-              ? '习惯推测'
-              : '自动识别',
+              ? t('transactions.source.guessed')
+              : t('transactions.source.auto'),
     },
-    { label: '周期交易', value: txn.isPeriodic ? '是' : '否' },
-    { label: '导入时间', value: txn.createdAt ? new Date(txn.createdAt).toLocaleString('zh-CN') : '—' },
+    {
+      label: t('transactions.field.periodic'),
+      value: txn.isPeriodic ? t('transactions.yes') : t('transactions.no'),
+    },
+    {
+      label: t('transactions.field.importedAt'),
+      value: txn.createdAt ? new Date(txn.createdAt).toLocaleString(locale) : '—',
+    },
   ];
 
   const handleDelete = () => {
@@ -162,7 +174,7 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
   return (
     <Modal
       onClose={onClose}
-      title={txn.counterparty || txn.description || '未知交易'}
+      title={txn.counterparty || txn.description || t('transactions.unknown')}
       description={txn.transactionTime}
       headerExtra={
         <span
@@ -183,14 +195,14 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
               onClick={handleDelete}
               className="flex-1 rounded-lg bg-expense py-2.5 text-sm font-medium text-white transition-colors hover:bg-expense/90"
             >
-              确认删除
+              {t('transactions.confirmDelete')}
             </button>
             <button
               type="button"
               onClick={() => setConfirming(false)}
               className="flex-1 rounded-lg bg-canvas py-2.5 text-sm text-ink-muted transition-colors hover:text-ink"
             >
-              取消
+              {t('common.cancel')}
             </button>
           </div>
         ) : (
@@ -199,7 +211,7 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
             onClick={() => setConfirming(true)}
             className="w-full rounded-lg border border-expense-soft py-2.5 text-sm text-expense transition-colors hover:bg-expense-soft"
           >
-            删除这笔交易
+            {t('transactions.deleteThis')}
           </button>
         )
       }
@@ -210,8 +222,12 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
           <p className="flex items-start gap-2 rounded-lg bg-alert-soft px-3 py-2.5 text-sm text-alert">
             <TriangleAlert size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
             <span>
-              这笔 {formatCurrency(txn.amount)} 超过了「{txn.category}」的单笔上限{' '}
-              {formatCurrency(limit)}，超出 {formatCurrency(txn.amount - limit)}。
+              {t('transactions.detail.overLimit', {
+                amount: formatCurrency(txn.amount),
+                category: categoryLabel(locale, txn.category),
+                limit: formatCurrency(limit),
+                excess: formatCurrency(txn.amount - limit),
+              })}
             </span>
           </p>
         )}
@@ -219,7 +235,7 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
         {/* 主题 + 配图 */}
         <div className="border-b border-line pb-3">
           <label htmlFor="detail-theme" className="mb-1.5 block text-xs text-ink-subtle">
-            主题
+            {t('transactions.field.theme')}
           </label>
           <div className="flex gap-2">
             <input
@@ -230,7 +246,7 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
               maxLength={40}
               value={themeInput}
               onChange={(e) => setThemeInput(e.target.value)}
-              placeholder="给这笔账单写个主题，如：和朋友的晚餐"
+              placeholder={t('transactions.detail.themePlaceholder')}
               className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-subtle focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
             />
             <button
@@ -239,11 +255,11 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
               disabled={themeInput.trim() === txn.theme}
               className="shrink-0 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              保存
+              {t('common.save')}
             </button>
           </div>
           <p className="mt-1 text-[11px] text-ink-subtle">
-            设了主题的账单会出现在看板的「主题」视图里
+            {t('transactions.detail.themeHint')}
           </p>
 
           {/* 配图 */}
@@ -251,7 +267,7 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
             {txn.coverImage ? (
               <img
                 src={txn.coverImage}
-                alt="账单配图"
+                alt={t('transactions.detail.coverAlt')}
                 width={128}
                 height={128}
                 className="h-16 w-16 shrink-0 rounded-lg object-cover"
@@ -269,7 +285,11 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
                 disabled={uploading}
                 className="rounded-lg border border-line px-3 py-1.5 text-xs text-ink transition-colors hover:bg-canvas disabled:opacity-50"
               >
-                {uploading ? '上传中…' : txn.coverImage ? '更换配图' : '添加配图'}
+                {uploading
+                  ? t('transactions.detail.uploading')
+                  : txn.coverImage
+                    ? t('transactions.detail.replaceCover')
+                    : t('transactions.detail.addCover')}
               </button>
               {txn.coverImage && (
                 <button
@@ -278,7 +298,7 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
                   className="flex items-center gap-1 rounded-lg border border-line px-3 py-1.5 text-xs text-ink-muted transition-colors hover:bg-expense-soft hover:text-expense"
                 >
                   <X size={12} aria-hidden="true" />
-                  移除
+                  {t('transactions.detail.removeCover')}
                 </button>
               )}
             </div>
@@ -295,7 +315,7 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
 
         {/* 当前分类 */}
         <div className="flex items-center justify-between gap-3 border-b border-line pb-3">
-          <span className="text-sm text-ink-muted">分类</span>
+          <span className="text-sm text-ink-muted">{t('common.category')}</span>
           <CategoryTag
             transactionId={txn.id}
             category={txn.category}
@@ -308,7 +328,7 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
 
         {/* 快速归类 */}
         <div className="border-b border-line pb-3">
-          <p className="mb-2 text-xs text-ink-subtle">快速归类</p>
+          <p className="mb-2 text-xs text-ink-subtle">{t('transactions.detail.quickCategorize')}</p>
           <div className="grid grid-cols-3 gap-2">
             {quickCategories.map((item) => {
               const active = item.name === txn.category;
@@ -326,7 +346,9 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
                   )}
                 >
                   <CategoryIcon category={item.name} size={16} />
-                  <span className="w-full truncate text-center">{item.name}</span>
+                  <span className="w-full truncate text-center">
+                    {categoryLabel(locale, item.name)}
+                  </span>
                 </button>
               );
             })}
@@ -335,14 +357,14 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
 
         {/* 明细（可编辑：金额/时间/对方/说明/支付方式） */}
         <div className="flex items-center justify-between">
-          <p className="text-xs text-ink-subtle">明细</p>
+          <p className="text-xs text-ink-subtle">{t('transactions.detail.section')}</p>
           {!editing && (
             <button
               type="button"
               onClick={() => setEditing(true)}
               className="text-xs font-medium text-brand hover:underline"
             >
-              编辑
+              {t('common.edit')}
             </button>
           )}
         </div>
@@ -351,7 +373,7 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
           <div className="space-y-2.5">
             <div className="grid grid-cols-2 gap-2.5">
               <label className="block">
-                <span className="mb-1 block text-xs text-ink-subtle">金额</span>
+                <span className="mb-1 block text-xs text-ink-subtle">{t('common.amount')}</span>
                 <input
                   type="number"
                   inputMode="decimal"
@@ -363,7 +385,9 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
                 />
               </label>
               <label className="block">
-                <span className="mb-1 block text-xs text-ink-subtle">交易时间</span>
+                <span className="mb-1 block text-xs text-ink-subtle">
+                  {t('transactions.field.transactionTime')}
+                </span>
                 <input
                   type="datetime-local"
                   value={form.time}
@@ -373,7 +397,9 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
               </label>
             </div>
             <label className="block">
-              <span className="mb-1 block text-xs text-ink-subtle">交易对方</span>
+              <span className="mb-1 block text-xs text-ink-subtle">
+                {t('transactions.field.counterparty')}
+              </span>
               <input
                 type="text"
                 value={form.counterparty}
@@ -382,7 +408,9 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
               />
             </label>
             <label className="block">
-              <span className="mb-1 block text-xs text-ink-subtle">商品说明</span>
+              <span className="mb-1 block text-xs text-ink-subtle">
+                {t('transactions.field.itemDescription')}
+              </span>
               <input
                 type="text"
                 value={form.description}
@@ -391,7 +419,9 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
               />
             </label>
             <label className="block">
-              <span className="mb-1 block text-xs text-ink-subtle">支付方式</span>
+              <span className="mb-1 block text-xs text-ink-subtle">
+                {t('transactions.field.paymentMethod')}
+              </span>
               <input
                 type="text"
                 value={form.paymentMethod}
@@ -400,7 +430,7 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
               />
             </label>
             <p className="text-[11px] text-ink-subtle">
-              编辑过的记录不会再被后续导入的账单覆盖。
+              {t('transactions.detail.editHint')}
             </p>
             <div className="flex gap-2">
               <button
@@ -409,7 +439,7 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
                 disabled={!form.amount || Number.parseFloat(form.amount) <= 0}
                 className="flex-1 rounded-lg bg-brand py-2 text-sm font-medium text-white transition-colors hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                保存修改
+                {t('transactions.detail.saveEdit')}
               </button>
               <button
                 type="button"
@@ -419,7 +449,7 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
                 }}
                 className="flex-1 rounded-lg bg-canvas py-2 text-sm text-ink-muted transition-colors hover:text-ink"
               >
-                取消
+                {t('common.cancel')}
               </button>
             </div>
           </div>
@@ -434,7 +464,9 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
 
             {txn.tags.length > 0 && (
               <div className="flex items-start justify-between gap-4">
-                <dt className="shrink-0 text-sm text-ink-muted">标签</dt>
+                <dt className="shrink-0 text-sm text-ink-muted">
+                  {t('transactions.field.tags')}
+                </dt>
                 <dd className="flex flex-wrap justify-end gap-1">
                   {txn.tags.map((tag) => (
                     <span key={tag} className="rounded-full bg-canvas px-2 py-0.5 text-xs text-ink-muted">

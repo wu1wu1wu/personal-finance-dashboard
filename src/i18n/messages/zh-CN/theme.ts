@@ -1,0 +1,15 @@
+export const theme = {
+  'theme.title': '外观',
+  'theme.description': '选一套顺眼的配色，切换即时生效。',
+  'theme.modeLabel': '外观模式',
+  'theme.system.label': '跟随系统',
+  'theme.system.description': '系统切到深色时自动跟着变',
+  'theme.light.label': '浅色',
+  'theme.light.description': '始终使用浅色配色',
+  'theme.dark.label': '深色',
+  'theme.dark.description': '始终使用深色配色',
+  'theme.contrastNote': '两套配色的对比度都按 WCAG AA 校过，深色下文字的对比度由单测守住。',
+  'theme.language.title': '语言',
+  'theme.language.description': '切换后界面文案立即生效，分类名等历史数据不受影响。',
+  'theme.language.label': '界面语言',
+} as const;

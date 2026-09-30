@@ -8,6 +8,7 @@ import { CATEGORIES, type Transaction } from '@/types';
 import { generateTransactionId } from '@/utils/id';
 import { getTodayLocal } from '@/utils/date';
 import { cn } from '@/utils/cn';
+import { categoryLabel, transactionTypeLabel, useLocale, useT } from '@/i18n';
 import Modal from '@/components/ui/Modal';
 import CategoryIcon from '@/components/ui/CategoryIcon';
 
@@ -22,6 +23,8 @@ const FIELD_CLASS =
 
 export default function AddTransactionModal({ onClose }: AddTransactionModalProps) {
   const addTransaction = useTransactionStore((s) => s.addTransaction);
+  const { t } = useT();
+  const locale = useLocale();
 
   const [transactionType, setTransactionType] = useState<Direction>('支出');
   const [amount, setAmount] = useState('');
@@ -71,8 +74,8 @@ export default function AddTransactionModal({ onClose }: AddTransactionModalProp
   return (
     <Modal
       onClose={onClose}
-      title="记一笔"
-      description="金额和交易对方是必填项"
+      title={t('transactions.add.title')}
+      description={t('transactions.add.description')}
       footer={
         <button
           type="button"
@@ -80,13 +83,17 @@ export default function AddTransactionModal({ onClose }: AddTransactionModalProp
           disabled={!isValid}
           className="w-full rounded-lg bg-brand py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          保存
+          {t('common.save')}
         </button>
       }
     >
       <div className="space-y-4 pb-1">
         {/* 收/支方向 */}
-        <div role="group" aria-label="收支方向" className="flex rounded-lg bg-canvas p-0.5">
+        <div
+          role="group"
+          aria-label={t('transactions.directionGroup')}
+          className="flex rounded-lg bg-canvas p-0.5"
+        >
           {(['支出', '收入'] as const).map((type) => (
             <button
               key={type}
@@ -102,7 +109,7 @@ export default function AddTransactionModal({ onClose }: AddTransactionModalProp
                   : 'text-ink-muted hover:text-ink',
               )}
             >
-              {type}
+              {transactionTypeLabel(locale, type)}
             </button>
           ))}
         </div>
@@ -110,7 +117,7 @@ export default function AddTransactionModal({ onClose }: AddTransactionModalProp
         {/* 金额 */}
         <div>
           <label htmlFor="add-amount" className="mb-1 block text-xs text-ink-muted">
-            金额（元）
+            {t('transactions.add.amountLabel')}
           </label>
           <input
             id="add-amount"
@@ -129,7 +136,7 @@ export default function AddTransactionModal({ onClose }: AddTransactionModalProp
 
         {/* 分类 */}
         <fieldset>
-          <legend className="mb-1.5 text-xs text-ink-muted">分类</legend>
+          <legend className="mb-1.5 text-xs text-ink-muted">{t('common.category')}</legend>
           <div className="flex flex-wrap gap-1.5">
             {CATEGORIES.filter((c) => c.name !== '待确认').map((cat) => {
               const active = cat.name === category;
@@ -146,7 +153,7 @@ export default function AddTransactionModal({ onClose }: AddTransactionModalProp
                   style={active ? { backgroundColor: cat.color } : undefined}
                 >
                   <CategoryIcon category={cat.name} size={13} />
-                  {cat.name}
+                  {categoryLabel(locale, cat.name)}
                 </button>
               );
             })}
@@ -156,7 +163,7 @@ export default function AddTransactionModal({ onClose }: AddTransactionModalProp
         {/* 交易对方 */}
         <div>
           <label htmlFor="add-counterparty" className="mb-1 block text-xs text-ink-muted">
-            交易对方
+            {t('transactions.field.counterparty')}
           </label>
           <input
             id="add-counterparty"
@@ -165,7 +172,7 @@ export default function AddTransactionModal({ onClose }: AddTransactionModalProp
             autoComplete="off"
             value={counterparty}
             onChange={(e) => setCounterparty(e.target.value)}
-            placeholder="如：美团外卖"
+            placeholder={t('transactions.add.counterpartyPlaceholder')}
             className={FIELD_CLASS}
           />
         </div>
@@ -173,7 +180,7 @@ export default function AddTransactionModal({ onClose }: AddTransactionModalProp
         {/* 备注 */}
         <div>
           <label htmlFor="add-description" className="mb-1 block text-xs text-ink-muted">
-            备注
+            {t('transactions.field.note')}
           </label>
           <input
             id="add-description"
@@ -182,7 +189,7 @@ export default function AddTransactionModal({ onClose }: AddTransactionModalProp
             autoComplete="off"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="选填"
+            placeholder={t('common.optional')}
             className={FIELD_CLASS}
           />
         </div>
@@ -191,7 +198,7 @@ export default function AddTransactionModal({ onClose }: AddTransactionModalProp
         <div className="flex gap-3">
           <div className="flex-1">
             <label htmlFor="add-date" className="mb-1 block text-xs text-ink-muted">
-              日期
+              {t('transactions.field.date')}
             </label>
             <input
               id="add-date"
@@ -204,7 +211,7 @@ export default function AddTransactionModal({ onClose }: AddTransactionModalProp
           </div>
           <div className="flex-1">
             <label htmlFor="add-time" className="mb-1 block text-xs text-ink-muted">
-              时间
+              {t('common.time')}
             </label>
             <input
               id="add-time"

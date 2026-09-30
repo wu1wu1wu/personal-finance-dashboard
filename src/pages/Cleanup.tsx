@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Check, Trash } from 'lucide-react';
+import { formatMonthForLocale, useLocale, useT } from '@/i18n';
 import { useTransactionStore } from '@/stores/transaction-store';
 import { useBudgetStore } from '@/stores/budget-store';
 import UndoBar from '@/components/ui/UndoBar';
@@ -14,6 +15,8 @@ import { cn } from '@/utils/cn';
 
 export default function Cleanup() {
   const navigate = useNavigate();
+  const { t } = useT();
+  const locale = useLocale();
   const { transactions, loaded, loadFromStorage, deleteByMonths, restoreTrashEntry } =
     useTransactionStore();
   const {
@@ -77,7 +80,7 @@ export default function Cleanup() {
     const removedTotals = Object.fromEntries(
       Object.entries(totalBudgets).filter(([month]) => monthSet.has(month)),
     );
-    const label = [...selected].sort().join('、');
+    const label = [...selected].sort().join(t('common.listSeparator'));
 
     const count = deleteByMonths(selected, {
       label,
@@ -92,7 +95,10 @@ export default function Cleanup() {
     // 刚删的这批就是回收站里最新的一条，撤销条据此回滚
     const entryId = useTransactionStore.getState().trash[0]?.id;
     if (entryId && count > 0) {
-      setUndo({ entryId, label: `已清理 ${selected.length} 个月，共 ${count} 笔` });
+      setUndo({
+        entryId,
+        label: t('settings.cleanup.undoLabel', { months: selected.length, count }),
+      });
     }
   };
 
@@ -110,18 +116,15 @@ export default function Cleanup() {
         <button
           type="button"
           onClick={() => navigate('/settings/data')}
-          aria-label="返回设置"
+          aria-label={t('settings.cleanup.back')}
           className="-ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-canvas hover:text-ink"
         >
           <ArrowLeft size={18} aria-hidden="true" />
         </button>
-        <h1 className="text-xl font-semibold text-ink">按月份清理</h1>
+        <h1 className="text-xl font-semibold text-ink">{t('settings.cleanup.title')}</h1>
       </div>
 
-      <p className="text-sm text-ink-muted">
-        勾选要删除的月份，只会清掉这些月份的交易记录和对应月份的预算设置。
-        分类规则、其他月份的数据不受影响。
-      </p>
+      <p className="text-sm text-ink-muted">{t('settings.cleanup.description')}</p>
 
       {removedCount !== null && (
         <p
@@ -129,29 +132,33 @@ export default function Cleanup() {
           aria-live="polite"
           className="rounded-xl border border-line bg-income-soft px-3.5 py-3 text-sm text-income"
         >
-          已删除 {removedCount} 笔交易。
+          {t('settings.cleanup.removed', { count: removedCount })}
         </p>
       )}
 
-      {isLoading && <p className="py-10 text-center text-sm text-ink-subtle">加载中…</p>}
+      {isLoading && <p className="py-10 text-center text-sm text-ink-subtle">{t('common.loading')}</p>}
 
       {!isLoading && monthStats.length === 0 && (
         <div className="rounded-2xl border border-line bg-surface py-14 text-center">
-          <p className="text-sm font-medium text-ink">没有可清理的数据</p>
-          <p className="mt-1 text-sm text-ink-subtle">导入账单后这里会按月列出</p>
+          <p className="text-sm font-medium text-ink">{t('settings.cleanup.emptyTitle')}</p>
+          <p className="mt-1 text-sm text-ink-subtle">{t('settings.cleanup.emptyHint')}</p>
         </div>
       )}
 
       {!isLoading && monthStats.length > 0 && (
         <>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-ink-muted tnum">共 {monthStats.length} 个月</span>
+            <span className="text-sm text-ink-muted tnum">
+              {t('settings.cleanup.monthCount', { count: monthStats.length })}
+            </span>
             <button
               type="button"
               onClick={toggleAll}
               className="text-sm text-brand hover:underline"
             >
-              {allSelected ? '取消全选' : '全选'}
+              {allSelected
+                ? t('settings.cleanup.deselectAll')
+                : t('settings.cleanup.selectAll')}
             </button>
           </div>
 
@@ -180,9 +187,14 @@ export default function Cleanup() {
                     </span>
 
                     <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-medium text-ink tnum">{item.month}</span>
+                      <span className="block text-sm font-medium text-ink tnum">
+                        {formatMonthForLocale(locale, item.month)}
+                      </span>
                       <span className="mt-0.5 block text-xs text-ink-subtle tnum">
-                        {item.count} 笔 · 支出 {formatCurrency(item.expense)}
+                        {t('settings.cleanup.monthItem', {
+                          count: item.count,
+                          amount: formatCurrency(item.expense),
+                        })}
                       </span>
                     </span>
                   </button>
@@ -200,8 +212,10 @@ export default function Cleanup() {
             {confirming ? (
               <div className="space-y-2.5">
                 <p className="text-sm text-ink">
-                  将删除 <span className="tnum font-semibold">{selectedCount}</span> 笔交易和
-                  {selected.length} 个月的预算设置，此操作不可撤销。
+                  {t('settings.cleanup.confirm', {
+                    count: selectedCount,
+                    months: selected.length,
+                  })}
                 </p>
                 <div className="flex gap-2">
                   <button
@@ -209,14 +223,14 @@ export default function Cleanup() {
                     onClick={handleClean}
                     className="flex-1 rounded-lg bg-expense py-2.5 text-sm font-medium text-white transition-colors hover:bg-expense/90"
                   >
-                    确认清理
+                    {t('settings.cleanup.confirmAction')}
                   </button>
                   <button
                     type="button"
                     onClick={() => setConfirming(false)}
                     className="flex-1 rounded-lg bg-canvas py-2.5 text-sm text-ink-muted transition-colors hover:text-ink"
                   >
-                    取消
+                    {t('common.cancel')}
                   </button>
                 </div>
               </div>
@@ -227,7 +241,10 @@ export default function Cleanup() {
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-expense py-2.5 text-sm font-medium text-white transition-colors hover:bg-expense/90"
               >
                 <Trash size={15} aria-hidden="true" />
-                清理所选 {selected.length} 个月（共 {selectedCount} 笔）
+                {t('settings.cleanup.action', {
+                  months: selected.length,
+                  count: selectedCount,
+                })}
               </button>
             )}
           </div>

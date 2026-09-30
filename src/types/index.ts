@@ -163,6 +163,7 @@ export const STORAGE_KEYS = {
   CAPTURE_RULES: 'pfd_capture_rules',
   CAPTURE_SETTINGS: 'pfd_capture_settings',
   TRASH: 'pfd_trash',
+  RECURRING_IGNORED: 'pfd_recurring_ignored',
 } as const;
 
 /** 分类定义 */

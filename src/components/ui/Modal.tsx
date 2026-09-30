@@ -6,6 +6,7 @@
 import type { ReactNode } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
+import { useT } from '@/i18n';
 import { cn } from '@/utils/cn';
 
 interface ModalProps {
@@ -35,6 +36,8 @@ export default function Modal({
   footer,
   className,
 }: ModalProps) {
+  const { t } = useT();
+
   return (
     <Dialog.Root
       open={open}
@@ -72,7 +75,7 @@ export default function Modal({
               <Dialog.Close asChild>
                 <button
                   type="button"
-                  aria-label="关闭"
+                  aria-label={t('common.close')}
                   className="-mr-1.5 -mt-0.5 flex h-9 w-9 items-center justify-center rounded-lg text-ink-subtle hover:bg-canvas hover:text-ink"
                 >
                   <X size={18} aria-hidden="true" />

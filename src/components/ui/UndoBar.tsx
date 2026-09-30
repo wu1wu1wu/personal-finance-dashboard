@@ -7,6 +7,7 @@
 
 import { useEffect } from 'react';
 import { Undo2, X } from 'lucide-react';
+import { useT } from '@/i18n';
 
 interface UndoBarProps {
   /** 提示文案，如「已删除 3 笔」 */
@@ -18,6 +19,8 @@ interface UndoBarProps {
 }
 
 export default function UndoBar({ label, onUndo, onDismiss, duration = 8000 }: UndoBarProps) {
+  const { t } = useT();
+
   useEffect(() => {
     const timer = setTimeout(onDismiss, duration);
     return () => clearTimeout(timer);
@@ -38,13 +41,13 @@ export default function UndoBar({ label, onUndo, onDismiss, duration = 8000 }: U
           className="flex min-h-11 items-center gap-1.5 rounded-lg bg-brand px-3 text-sm font-medium text-white transition-colors hover:bg-brand/90"
         >
           <Undo2 size={15} aria-hidden="true" />
-          撤销
+          {t('common.undo')}
         </button>
 
         <button
           type="button"
           onClick={onDismiss}
-          aria-label="关闭提示"
+          aria-label={t('common.dismiss')}
           className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-ink-subtle transition-colors hover:text-ink"
         >
           <X size={16} aria-hidden="true" />

@@ -146,3 +146,18 @@ export function addMonthsClamped(dateStr: string, months: number): string {
   const day = Math.min(d, daysInTarget);
   return `${targetYear}-${targetMonth.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
 }
+
+/**
+ * 在月份键上前后移动（月度报告的上/下个月用）
+ * "2026-01" - 1 → "2025-12"；"2026-12" + 1 → "2027-01"
+ * 非法输入原样返回，交给调用方决定怎么兜底
+ */
+export function shiftMonthKey(monthKey: string, delta: number): string {
+  const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(monthKey ?? '');
+  if (!match) return monthKey;
+
+  const totalMonths = Number(match[1]) * 12 + (Number(match[2]) - 1) + delta;
+  const year = Math.floor(totalMonths / 12);
+  const month = (totalMonths % 12) + 1;
+  return `${year}-${month.toString().padStart(2, '0')}`;
+}

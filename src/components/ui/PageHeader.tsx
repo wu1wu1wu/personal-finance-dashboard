@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
+import { useT } from '@/i18n';
 
 interface PageHeaderProps {
   title: string;
@@ -11,13 +12,14 @@ interface PageHeaderProps {
 
 export default function PageHeader({ title, description, backTo, action }: PageHeaderProps) {
   const navigate = useNavigate();
+  const { t } = useT();
 
   return (
     <div className="flex items-start gap-3">
       <button
         type="button"
         onClick={() => navigate(backTo)}
-        aria-label="返回"
+        aria-label={t('common.back')}
         className="-ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-canvas hover:text-ink"
       >
         <ArrowLeft size={18} aria-hidden="true" />

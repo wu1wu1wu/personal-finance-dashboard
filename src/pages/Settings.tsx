@@ -2,15 +2,18 @@ import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronRight, Database, FolderOpen, Info, Smartphone, SunMoon, Tags } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
+import { useT } from '@/i18n';
+import type { MessageKey } from '@/i18n';
 import { useTransactionStore } from '@/stores/transaction-store';
 import { useClassificationStore } from '@/stores/classification-store';
 import { useBudgetStore } from '@/stores/budget-store';
 import { useSettingsStore } from '@/stores/settings-store';
 
-const THEME_LABELS: Record<string, string> = {
-  system: '跟随系统',
-  light: '浅色',
-  dark: '深色',
+/** 外观项的副标题直接用外观页的档位名，回落到「跟随系统」 */
+const THEME_LABEL_KEYS: Record<string, MessageKey> = {
+  system: 'theme.system.label',
+  light: 'theme.light.label',
+  dark: 'theme.dark.label',
 };
 
 interface MenuItem {
@@ -22,6 +25,7 @@ interface MenuItem {
 }
 
 export default function Settings() {
+  const { t } = useT();
   const { transactions, loadFromStorage: loadTransactions } = useTransactionStore();
   const { customRules, loadFromStorage: loadRules } = useClassificationStore();
   const { loadFromStorage: loadBudgets } = useBudgetStore();
@@ -36,45 +40,45 @@ export default function Settings() {
   const menuItems: MenuItem[] = [
     {
       to: '/settings/import',
-      label: '账单导入',
-      description: 'CSV / XLSX 账单文件',
+      label: t('billImport.title'),
+      description: t('settings.menu.importDescription'),
       icon: FolderOpen,
       tone: 'bg-brand-soft text-brand',
     },
     {
       to: '/settings/appearance',
-      label: '外观',
-      description: THEME_LABELS[themeMode] ?? '跟随系统',
+      label: t('theme.title'),
+      description: t(THEME_LABEL_KEYS[themeMode] ?? 'theme.system.label'),
       icon: SunMoon,
       tone: 'bg-canvas text-ink-muted',
     },
     {
       to: '/settings/auto-ledger',
-      label: '自动记账',
+      label: t('settings.menu.autoLedger'),
       description: Capacitor.isNativePlatform()
-        ? '权限、消息规则与诊断'
-        : '仅安卓 App 支持',
+        ? t('settings.menu.autoLedgerDescription')
+        : t('settings.menu.autoLedgerUnsupported'),
       icon: Smartphone,
       tone: 'bg-income-soft text-income',
     },
     {
       to: '/settings/categories',
-      label: '分类规则',
-      description: `${customRules.length} 条自定义规则`,
+      label: t('settingsRules.title'),
+      description: t('settings.menu.rulesCount', { count: customRules.length }),
       icon: Tags,
       tone: 'bg-canvas text-ink-muted',
     },
     {
       to: '/settings/data',
-      label: '数据管理',
-      description: `${transactions.length} 笔交易 · 备份与清理`,
+      label: t('settingsData.title'),
+      description: t('settings.menu.dataDescription', { count: transactions.length }),
       icon: Database,
       tone: 'bg-canvas text-ink-muted',
     },
     {
       to: '/settings/about',
-      label: '关于',
-      description: '隐私、备份和使用限制',
+      label: t('settings.about.title'),
+      description: t('settings.menu.aboutDescription'),
       icon: Info,
       tone: 'bg-canvas text-ink-muted',
     },
@@ -82,10 +86,10 @@ export default function Settings() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-semibold text-ink">设置</h1>
+      <h1 className="text-xl font-semibold text-ink">{t('settings.title')}</h1>
 
       <nav
-        aria-label="设置菜单"
+        aria-label={t('settings.menuLabel')}
         className="overflow-hidden rounded-2xl border border-line bg-surface"
       >
         {menuItems.map((item, index) => (

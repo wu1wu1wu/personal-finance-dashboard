@@ -5,6 +5,8 @@
 import { Wallet } from 'lucide-react';
 import type { BudgetStatus } from '@/types';
 import { getWarningStyle, getCategoryInfo } from '@/core/budget-engine';
+import { categoryLabel, useLocale, useT } from '@/i18n';
+import type { MessageKey } from '@/i18n';
 import { formatCurrency } from '@/utils/format';
 import { cn } from '@/utils/cn';
 import CategoryIcon from '@/components/ui/CategoryIcon';
@@ -16,11 +18,24 @@ interface BudgetProgressBarProps {
   isTotal?: boolean;
 }
 
+/**
+ * 预警级别 → 文案。
+ * core 里的 getWarningStyle 只负责配色，label 是写死的中文，
+ * 这里按级别（style 的唯一输入）映射到可翻译的 key，配色仍取 core 的值。
+ */
+const LEVEL_MESSAGE_KEYS = {
+  normal: 'budget.levelNormal',
+  warning: 'budget.levelWarning',
+  exceeded: 'budget.levelExceeded',
+} as const satisfies Record<BudgetStatus['level'], MessageKey>;
+
 export default function BudgetProgressBar({ status, isTotal = false }: BudgetProgressBarProps) {
   const style = getWarningStyle(status.level);
   const catInfo = isTotal ? null : getCategoryInfo(status.category);
   const pct = Math.min(status.percentage * 100, 100);
   const isOver = status.percentage > 1;
+  const { t } = useT();
+  const locale = useLocale();
 
   return (
     <div
@@ -50,7 +65,7 @@ export default function BudgetProgressBar({ status, isTotal = false }: BudgetPro
               isTotal ? 'text-base' : 'text-sm',
             )}
           >
-            {isTotal ? '总预算' : status.category}
+            {isTotal ? t('budget.totalLabel') : categoryLabel(locale, status.category)}
           </span>
         </div>
 
@@ -58,7 +73,7 @@ export default function BudgetProgressBar({ status, isTotal = false }: BudgetPro
           className="shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium"
           style={{ color: style.color, backgroundColor: style.bgColor }}
         >
-          {style.label}
+          {t(LEVEL_MESSAGE_KEYS[status.level])}
         </span>
       </div>
 
@@ -73,22 +88,29 @@ export default function BudgetProgressBar({ status, isTotal = false }: BudgetPro
       {/* 金额 */}
       <div className="tnum mt-1.5 flex items-center justify-between text-xs text-ink-muted">
         <span>
-          已支出 <span className="font-medium text-ink">{formatCurrency(status.spent)}</span>
+          {t('budget.spent')}{' '}
+          <span className="font-medium text-ink">{formatCurrency(status.spent)}</span>
         </span>
         <span>
-          预算 <span className="font-medium text-ink">{formatCurrency(status.limit)}</span>
+          {t('budget.limit')}{' '}
+          <span className="font-medium text-ink">{formatCurrency(status.limit)}</span>
         </span>
       </div>
 
       {isOver && (
         <p className="tnum mt-1 text-xs text-expense">
-          已超支 {formatCurrency(status.spent - status.limit)}
+          {t('budget.overSpent', {
+            amount: formatCurrency(status.spent - status.limit),
+          })}
         </p>
       )}
 
       {!isOver && status.percentage >= 0.5 && (
         <p className="tnum mt-1 text-xs" style={{ color: style.color }}>
-          剩余 {formatCurrency(status.limit - status.spent)}（{Math.round((1 - status.percentage) * 100)}%）
+          {t('budget.remaining', {
+            amount: formatCurrency(status.limit - status.spent),
+            percent: Math.round((1 - status.percentage) * 100),
+          })}
         </p>
       )}
     </div>

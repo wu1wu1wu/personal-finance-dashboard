@@ -23,6 +23,11 @@ export interface CategoryBreakdownPoint {
   color: string;
   icon: string;
   count: number;       // 交易笔数
+  /**
+   * 展示用名称（按界面语言本地化后的分类名）。
+   * 图表里用它当扇区名，点击时仍用 category 原值去筛选，避免把英文名拼进 URL。
+   */
+  displayName?: string;
 }
 
 /** 日度支出数据点 */

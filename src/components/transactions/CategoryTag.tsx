@@ -11,6 +11,7 @@ import { Check } from 'lucide-react';
 import { CATEGORIES } from '@/types';
 import { useTransactionStore } from '@/stores/transaction-store';
 import { useClassificationStore } from '@/stores/classification-store';
+import { categoryLabel, useLocale, useT } from '@/i18n';
 import { cn } from '@/utils/cn';
 import CategoryIcon from '@/components/ui/CategoryIcon';
 
@@ -39,6 +40,8 @@ export default function CategoryTag({
 }: CategoryTagProps) {
   const updateCategory = useTransactionStore((s) => s.updateCategory);
   const recordFeedback = useClassificationStore((s) => s.recordFeedback);
+  const { t } = useT();
+  const locale = useLocale();
 
   const catInfo = CATEGORIES.find((c) => c.name === category) ?? CATEGORIES[CATEGORIES.length - 1];
 
@@ -50,15 +53,18 @@ export default function CategoryTag({
   const tagContent = (
     <>
       <CategoryIcon category={catInfo.name} size={12} />
-      <span>{catInfo.name}</span>
+      <span>{categoryLabel(locale, catInfo.name)}</span>
       {source === 'guessed' && (
-        <span className="ml-0.5 text-[10px] opacity-70" title="按历史习惯推测">
-          推测
+        <span
+          className="ml-0.5 text-[10px] opacity-70"
+          title={t('transactions.tag.guessedTitle')}
+        >
+          {t('transactions.tag.guessed')}
         </span>
       )}
       {source === 'rule' && (
-        <span className="ml-0.5 text-[10px] opacity-70" title="按自定义消息规则归类">
-          规则
+        <span className="ml-0.5 text-[10px] opacity-70" title={t('transactions.tag.ruleTitle')}>
+          {t('transactions.tag.rule')}
         </span>
       )}
     </>
@@ -119,7 +125,7 @@ export default function CategoryTag({
                 )}
               >
                 <CategoryIcon category={cat.name} size={14} />
-                <span className="flex-1">{cat.name}</span>
+                <span className="flex-1">{categoryLabel(locale, cat.name)}</span>
                 <DropdownMenu.ItemIndicator>
                   <Check size={13} aria-hidden="true" />
                 </DropdownMenu.ItemIndicator>

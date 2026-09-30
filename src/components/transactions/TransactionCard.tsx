@@ -9,7 +9,8 @@ import { X } from 'lucide-react';
 import type { Transaction } from '@/types';
 import { CATEGORIES } from '@/types';
 import { TRANSFER_CATEGORY } from '@/core/transaction-query';
-import { formatAmountCompact, formatDateShort } from '@/utils/format';
+import { formatAmountCompact } from '@/utils/format';
+import { categoryLabel, formatDateTimeForLocale, useLocale, useT } from '@/i18n';
 import { cn } from '@/utils/cn';
 import CategoryIcon from '@/components/ui/CategoryIcon';
 
@@ -22,6 +23,8 @@ interface TransactionCardProps {
 }
 
 export default function TransactionCard({ txn, onClick, onClearTheme }: TransactionCardProps) {
+  const { t } = useT();
+  const locale = useLocale();
   const cat = CATEGORIES.find((c) => c.name === txn.category) ?? CATEGORIES[CATEGORIES.length - 1];
   const isExpense = txn.amount > 0;
   const isTransfer = txn.category === TRANSFER_CATEGORY;
@@ -38,7 +41,9 @@ export default function TransactionCard({ txn, onClick, onClearTheme }: Transact
       <button
         type="button"
         onClick={onClick}
-        aria-label={`查看 ${txn.theme || txn.counterparty || '这笔交易'} 的详情`}
+        aria-label={t('transactions.viewDetail', {
+          name: txn.theme || txn.counterparty || t('transactions.thisTransaction'),
+        })}
         className={cn(
           'relative block w-full overflow-hidden rounded-2xl border text-left transition-shadow hover:shadow-md',
           hasImage ? 'border-transparent' : 'border-line bg-surface',
@@ -75,7 +80,7 @@ export default function TransactionCard({ txn, onClick, onClearTheme }: Transact
               <span className="tnum text-[15px] font-semibold leading-none">
                 {formatAmountCompact(txn.amount)}
               </span>
-              <span className="mt-0.5 text-[10px] opacity-80">元</span>
+              <span className="mt-0.5 text-[10px] opacity-80">{t('common.yuan')}</span>
             </span>
 
             <span className="min-w-0 flex-1">
@@ -86,7 +91,7 @@ export default function TransactionCard({ txn, onClick, onClearTheme }: Transact
                   hasImage ? 'text-white' : 'text-ink',
                 )}
               >
-                {txn.theme || txn.counterparty || txn.description || '未命名'}
+                {txn.theme || txn.counterparty || txn.description || t('transactions.untitled')}
               </span>
               <span
                 className={cn(
@@ -94,7 +99,7 @@ export default function TransactionCard({ txn, onClick, onClearTheme }: Transact
                   hasImage ? 'text-white/85' : 'text-ink-subtle',
                 )}
               >
-                {txn.counterparty || txn.description || '未知交易'}
+                {txn.counterparty || txn.description || t('transactions.unknown')}
               </span>
             </span>
           </div>
@@ -108,9 +113,11 @@ export default function TransactionCard({ txn, onClick, onClearTheme }: Transact
           >
             <span className="inline-flex items-center gap-1 truncate">
               <CategoryIcon category={txn.category} size={12} />
-              {txn.category}
+              {categoryLabel(locale, txn.category)}
             </span>
-            <span className="shrink-0 tnum">{formatDateShort(txn.transactionTime)}</span>
+            <span className="shrink-0 tnum">
+              {formatDateTimeForLocale(locale, txn.transactionTime)}
+            </span>
           </div>
         </div>
       </button>
@@ -120,7 +127,7 @@ export default function TransactionCard({ txn, onClick, onClearTheme }: Transact
         <button
           type="button"
           onClick={onClearTheme}
-          aria-label="移除主题"
+          aria-label={t('transactions.removeTheme')}
           className={cn(
             // 视觉上仍是一个小圆钮，但点击区扩到 44px（伪元素不再需要，直接用内边距）
             'absolute right-1 top-1 flex h-11 w-11 items-center justify-center rounded-full transition-colors',

@@ -5,10 +5,14 @@
 // 高度按页面的常见体量给足，避免加载完成后整体跳一下。
 // ============================================================
 
+import { useT } from '@/i18n';
+
 export default function PageFallback() {
+  const { t } = useT();
+
   return (
     <div role="status" aria-live="polite" className="space-y-4">
-      <span className="sr-only">页面加载中…</span>
+      <span className="sr-only">{t('common.loading')}</span>
       <div className="h-7 w-24 animate-pulse rounded-lg bg-line" aria-hidden="true" />
       <div className="h-32 animate-pulse rounded-2xl bg-line/60" aria-hidden="true" />
       <div className="h-24 animate-pulse rounded-2xl bg-line/60" aria-hidden="true" />

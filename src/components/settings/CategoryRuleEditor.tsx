@@ -8,6 +8,7 @@ import { useClassificationStore } from '@/stores/classification-store';
 import { CATEGORIES } from '@/types';
 import type { ClassificationRule } from '@/types';
 import { BUILTIN_RULES } from '@/constants/rules';
+import { categoryLabel, useLocale, useT } from '@/i18n';
 import CategoryIcon from '@/components/ui/CategoryIcon';
 
 const INPUT_CLASS =
@@ -17,6 +18,8 @@ const INPUT_CLASS =
 const KEYWORD_SEPARATOR = /[,，、;；\s]+/;
 
 export default function CategoryRuleEditor() {
+  const { t } = useT();
+  const locale = useLocale();
   const { customRules, addCustomRule, updateCustomRule, deleteCustomRule, loadFromStorage } =
     useClassificationStore();
 
@@ -76,9 +79,7 @@ export default function CategoryRuleEditor() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-medium text-ink-muted">
-          命中自定义规则的关键词优先按你的设定分类
-        </p>
+        <p className="text-sm font-medium text-ink-muted">{t('settingsRules.categoryRule.hint')}</p>
         {!showForm && (
           <button
             type="button"
@@ -86,7 +87,7 @@ export default function CategoryRuleEditor() {
             className="flex shrink-0 items-center gap-1 rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-brand/90"
           >
             <Plus size={13} aria-hidden="true" />
-            添加规则
+            {t('settingsRules.addRule')}
           </button>
         )}
       </div>
@@ -95,7 +96,7 @@ export default function CategoryRuleEditor() {
         <div className="space-y-3 rounded-xl bg-canvas p-3">
           <div>
             <label htmlFor="rule-keywords" className="mb-1 block text-xs font-medium text-ink">
-              关键词（用逗号或空格分隔）
+              {t('settingsRules.categoryRule.keywordsLabel')}
             </label>
             <input
               id="rule-keywords"
@@ -104,14 +105,14 @@ export default function CategoryRuleEditor() {
               autoComplete="off"
               value={keywords}
               onChange={(e) => setKeywords(e.target.value)}
-              placeholder="如：星巴克，瑞幸，Manner"
+              placeholder={t('settingsRules.categoryRule.keywordsPlaceholder')}
               className={INPUT_CLASS}
             />
           </div>
 
           <div>
             <label htmlFor="rule-category" className="mb-1 block text-xs font-medium text-ink">
-              目标分类
+              {t('settingsRules.categoryRule.targetCategory')}
             </label>
             <select
               id="rule-category"
@@ -121,7 +122,7 @@ export default function CategoryRuleEditor() {
             >
               {CATEGORIES.filter((c) => c.name !== '待确认').map((cat) => (
                 <option key={cat.name} value={cat.name}>
-                  {cat.name}
+                  {categoryLabel(locale, cat.name)}
                 </option>
               ))}
             </select>
@@ -134,14 +135,14 @@ export default function CategoryRuleEditor() {
               disabled={!keywords.trim()}
               className="rounded-lg bg-brand px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {editId ? '保存修改' : '添加规则'}
+              {editId ? t('settingsRules.saveChanges') : t('settingsRules.addRule')}
             </button>
             <button
               type="button"
               onClick={resetForm}
               className="rounded-lg bg-surface px-4 py-1.5 text-sm text-ink-muted transition-colors hover:text-ink"
             >
-              取消
+              {t('common.cancel')}
             </button>
           </div>
         </div>
@@ -149,8 +150,10 @@ export default function CategoryRuleEditor() {
 
       {customRules.length === 0 ? (
         <div className="rounded-xl border border-line bg-surface py-8 text-center">
-          <p className="text-sm text-ink-muted">暂无自定义规则</p>
-          <p className="mt-1 text-xs text-ink-subtle">添加关键词后，含该词的交易会自动归到你指定的分类</p>
+          <p className="text-sm text-ink-muted">{t('settingsRules.rulesEmpty')}</p>
+          <p className="mt-1 text-xs text-ink-subtle">
+            {t('settingsRules.categoryRule.emptyHint')}
+          </p>
         </div>
       ) : (
         <ul className="space-y-2">
@@ -166,7 +169,7 @@ export default function CategoryRuleEditor() {
                   style={{ backgroundColor: `${cat.color}18`, color: cat.color }}
                 >
                   <CategoryIcon category={cat.name} size={12} />
-                  {cat.name}
+                  {categoryLabel(locale, cat.name)}
                 </span>
 
                 <div className="flex min-w-0 flex-1 flex-wrap gap-1">
@@ -181,7 +184,9 @@ export default function CategoryRuleEditor() {
                   <button
                     type="button"
                     onClick={() => handleEdit(rule)}
-                    aria-label={`修改规则 ${rule.keywords.join('、')}`}
+                    aria-label={t('settingsRules.categoryRule.editAria', {
+                      name: rule.keywords.join('、'),
+                    })}
                     className="flex h-11 w-11 items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-canvas hover:text-brand"
                   >
                     <Pencil size={14} aria-hidden="true" />
@@ -189,7 +194,9 @@ export default function CategoryRuleEditor() {
                   <button
                     type="button"
                     onClick={() => deleteCustomRule(rule.id)}
-                    aria-label={`删除规则 ${rule.keywords.join('、')}`}
+                    aria-label={t('settingsRules.categoryRule.deleteAria', {
+                      name: rule.keywords.join('、'),
+                    })}
                     className="flex h-11 w-11 items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-expense-soft hover:text-expense"
                   >
                     <Trash size={14} aria-hidden="true" />
@@ -204,7 +211,7 @@ export default function CategoryRuleEditor() {
       {/* 内置规则说明 */}
       <details className="group rounded-xl border border-line bg-surface">
         <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm text-ink-muted [&::-webkit-details-marker]:hidden">
-          查看内置分类规则（{builtinByCategory.size} 个分类）
+          {t('settingsRules.categoryRule.builtinTitle', { count: builtinByCategory.size })}
           <ChevronDown
             size={15}
             className="text-ink-subtle transition-transform group-open:rotate-180"
@@ -218,7 +225,7 @@ export default function CategoryRuleEditor() {
               <li key={cat.name} className="flex gap-2 text-xs">
                 <span className="flex w-24 shrink-0 items-center gap-1 text-ink">
                   <CategoryIcon category={cat.name} size={13} />
-                  {cat.name}
+                  {categoryLabel(locale, cat.name)}
                 </span>
                 <span className="min-w-0 flex-1 text-ink-subtle">
                   {keywords.slice(0, 12).join('、')}

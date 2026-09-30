@@ -41,6 +41,15 @@ describe('normalizeSettings', () => {
       DEFAULT_SETTINGS,
     )
   })
+
+  it('保留用户选的语言', () => {
+    expect(normalizeSettings({ locale: 'en' }).locale).toBe('en')
+  })
+
+  it('语言值不认识时按浏览器语言猜（node 环境没有 navigator，落到中文）', () => {
+    expect(normalizeSettings({ locale: 'fr' }).locale).toBe('zh-CN')
+    expect(normalizeSettings({ locale: 42 }).locale).toBe('zh-CN')
+  })
 })
 
 describe('settings-store', () => {
@@ -59,7 +68,7 @@ describe('settings-store', () => {
         STORAGE_KEYS.SETTINGS
       ],
     )
-    expect(saved).toEqual({ importDesensitize: false, themeMode: 'system' })
+    expect(saved).toEqual({ importDesensitize: false, themeMode: 'system', locale: 'zh-CN' })
 
     useSettingsStore.setState({ settings: DEFAULT_SETTINGS, loaded: false })
     await useSettingsStore.getState().loadFromStorage()
@@ -75,5 +84,15 @@ describe('settings-store', () => {
     await useSettingsStore.getState().loadFromStorage()
 
     expect(useSettingsStore.getState().settings.themeMode).toBe('dark')
+  })
+
+  it('切换语言同样落盘', async () => {
+    useSettingsStore.getState().setLocale('en')
+    await flushPersist('settings')
+
+    useSettingsStore.setState({ settings: DEFAULT_SETTINGS, loaded: false })
+    await useSettingsStore.getState().loadFromStorage()
+
+    expect(useSettingsStore.getState().settings.locale).toBe('en')
   })
 })

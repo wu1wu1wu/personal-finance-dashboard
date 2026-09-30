@@ -9,7 +9,8 @@ import type { Transaction } from '@/types';
 import { CATEGORIES } from '@/types';
 import { TRANSFER_CATEGORY } from '@/core/transaction-query';
 import { usePerTransactionLimits } from '@/hooks/usePerTransactionLimits';
-import { formatCurrency, formatDateShort } from '@/utils/format';
+import { formatCurrency } from '@/utils/format';
+import { categoryLabel, formatDateTimeForLocale, useLocale, useT } from '@/i18n';
 import { cn } from '@/utils/cn';
 import CategoryIcon from '@/components/ui/CategoryIcon';
 
@@ -19,6 +20,8 @@ interface TransactionRowProps {
 }
 
 export default function TransactionRow({ txn, onClick }: TransactionRowProps) {
+  const { t } = useT();
+  const locale = useLocale();
   const cat = CATEGORIES.find((c) => c.name === txn.category) ?? CATEGORIES[CATEGORIES.length - 1];
   const isExpense = txn.amount > 0;
   const isTransfer = txn.category === TRANSFER_CATEGORY;
@@ -42,14 +45,14 @@ export default function TransactionRow({ txn, onClick }: TransactionRowProps) {
 
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium text-ink">
-            {txn.counterparty || txn.description || '未知交易'}
+            {txn.counterparty || txn.description || t('transactions.unknown')}
           </span>
           <span className="block truncate text-[11px] text-ink-subtle">
-            {txn.category} · {formatDateShort(txn.transactionTime)}
+            {categoryLabel(locale, txn.category)} · {formatDateTimeForLocale(locale, txn.transactionTime)}
           </span>
           {overLimit && (
             <span className="mt-0.5 block truncate text-[11px] text-alert">
-              超过单笔上限 {formatCurrency(limit)}
+              {t('transactions.overLimit', { amount: formatCurrency(limit) })}
             </span>
           )}
         </span>

@@ -7,12 +7,14 @@
 import { useMemo } from 'react';
 import { ChartPie } from 'lucide-react';
 import EChart from '@/components/charts/EChart';
+import { useChartLabels } from '@/components/charts/useChartLabels';
 import { useChartColors } from '@/components/charts/useChartColors';
 import {
   buildPeriodicBreakdownOption,
   summarizePeriodicBreakdown,
 } from '@/components/dashboard/chart-options';
 import type { PeriodicBreakdown } from '@/core/periodic-engine';
+import { useT } from '@/i18n';
 import { formatCurrency } from '@/utils/format';
 
 interface PeriodicBreakdownChartProps {
@@ -22,13 +24,18 @@ interface PeriodicBreakdownChartProps {
 export default function PeriodicBreakdownChart({ data }: PeriodicBreakdownChartProps) {
   const total = data.fixedAmount + data.flexibleAmount;
   const palette = useChartColors();
-  const option = useMemo(() => buildPeriodicBreakdownOption(data, palette), [data, palette]);
-  const summary = useMemo(() => summarizePeriodicBreakdown(data), [data]);
+  const labels = useChartLabels();
+  const { t } = useT();
+  const option = useMemo(
+    () => buildPeriodicBreakdownOption(data, palette, labels),
+    [data, palette, labels],
+  );
+  const summary = useMemo(() => summarizePeriodicBreakdown(data, t), [data, t]);
 
   const heading = (
     <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-ink">
       <ChartPie size={15} className="text-ink-subtle" aria-hidden="true" />
-      固定 vs 弹性
+      {t('periodic.breakdownTitle')}
     </h3>
   );
 
@@ -36,7 +43,9 @@ export default function PeriodicBreakdownChart({ data }: PeriodicBreakdownChartP
     return (
       <section className="rounded-2xl border border-line bg-surface p-4">
         {heading}
-        <p className="py-8 text-center text-sm text-ink-subtle">本月暂无支出数据</p>
+        <p className="py-8 text-center text-sm text-ink-subtle">
+          {t('periodic.noExpenseThisMonth')}
+        </p>
       </section>
     );
   }
@@ -46,14 +55,14 @@ export default function PeriodicBreakdownChart({ data }: PeriodicBreakdownChartP
 
   const legend = [
     {
-      label: '固定开销',
+      label: labels.fixed,
       color: palette.fixed,
       percent: fixedPercent,
       amount: data.fixedAmount,
       count: data.fixedCount,
     },
     {
-      label: '弹性开销',
+      label: labels.flexible,
       color: palette.flexible,
       percent: flexiblePercent,
       amount: data.flexibleAmount,
@@ -73,7 +82,7 @@ export default function PeriodicBreakdownChart({ data }: PeriodicBreakdownChartP
         >
           <EChart option={option} style={{ height: 132, width: 132 }} />
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-[11px] text-ink-subtle">合计</span>
+            <span className="text-[11px] text-ink-subtle">{t('common.total')}</span>
             <span className="tnum text-xs font-semibold text-ink">
               {formatCurrency(total)}
             </span>
@@ -93,7 +102,7 @@ export default function PeriodicBreakdownChart({ data }: PeriodicBreakdownChartP
                 <span className="tnum shrink-0 text-xs text-ink-subtle">{item.percent}%</span>
               </div>
               <p className="tnum mt-0.5 text-xs text-ink-muted">
-                {formatCurrency(item.amount)} · {item.count} 笔
+                {formatCurrency(item.amount)} · {t('common.count', { count: item.count })}
               </p>
             </li>
           ))}

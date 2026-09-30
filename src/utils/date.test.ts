@@ -10,6 +10,7 @@ import {
   addMonthsClamped,
   getTodayLocal,
   buildMonthOptions,
+  shiftMonthKey,
 } from './date'
 
 describe('getTodayLocal', () => {
@@ -151,5 +152,27 @@ describe('addMonthsClamped', () => {
 
   it('跨年', () => {
     expect(addMonthsClamped('2026-11-15', 2)).toBe('2027-01-15')
+  })
+})
+
+describe('shiftMonthKey', () => {
+  it('往前一个月会跨年', () => {
+    expect(shiftMonthKey('2026-01', -1)).toBe('2025-12')
+    expect(shiftMonthKey('2026-03', -3)).toBe('2025-12')
+  })
+
+  it('往后一个月会跨年', () => {
+    expect(shiftMonthKey('2026-12', 1)).toBe('2027-01')
+    expect(shiftMonthKey('2026-06', 7)).toBe('2027-01')
+  })
+
+  it('同月移动 0 个月是恒等', () => {
+    expect(shiftMonthKey('2026-09', 0)).toBe('2026-09')
+  })
+
+  it('非法输入原样返回，不抛异常', () => {
+    expect(shiftMonthKey('2026-13', 1)).toBe('2026-13')
+    expect(shiftMonthKey('', 1)).toBe('')
+    expect(shiftMonthKey('2026-9', 1)).toBe('2026-9')
   })
 })

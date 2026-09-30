@@ -14,6 +14,7 @@ import { buildBackup, restoreBackup, snapshotCurrent, validateBackup } from '@/c
 import { maskTransactions } from '@/core/data-masker';
 import { STORAGE_KEYS } from '@/types';
 import type { Transaction } from '@/types';
+import { useLocale, useT } from '@/i18n';
 import { backupFilename, downloadJsonFile } from '@/utils/download';
 import { cn } from '@/utils/cn';
 
@@ -29,6 +30,8 @@ interface PendingRestore {
 
 export default function SettingsData() {
   const navigate = useNavigate();
+  const { t } = useT();
+  const locale = useLocale();
   const {
     transactions,
     trash,
@@ -60,13 +63,13 @@ export default function SettingsData() {
     const entry = restoreTrashEntry(entryId);
     if (!entry) return;
     restoreFromTrash(entry);
-    setTrashStatus(`已恢复 ${entry.transactions.length} 笔交易`);
+    setTrashStatus(t('settingsData.trash.restored', { count: entry.transactions.length }));
   };
 
   /** 导出备份：脱敏版会把交易对方/商品说明/单号里的卡号手机号打码 */
   const handleExport = async (desensitize: boolean) => {
     try {
-      setExportStatus('正在导出…');
+      setExportStatus(t('settingsData.export.inProgress'));
       // 先把防抖窗口里的改动刷进存储，避免导出的是旧快照
       await flushAllPersists();
       const backup = await buildBackup(storage);
@@ -78,13 +81,20 @@ export default function SettingsData() {
         }
       }
 
-      downloadJsonFile(backupFilename(desensitize ? '记账备份_已脱敏' : '记账备份_完整'), backup);
+      const prefix = desensitize
+        ? t('settingsData.backup.fileNameMasked')
+        : t('settingsData.backup.fileNameFull');
+      downloadJsonFile(backupFilename(prefix), backup);
       setExportStatus(
-        desensitize ? '已导出（银行卡号、手机号、单号已打码）' : '已导出完整备份（含原始文本）',
+        desensitize ? t('settingsData.export.masked') : t('settingsData.export.full'),
       );
       setTimeout(() => setExportStatus(null), 5000);
     } catch (e) {
-      setExportStatus(`导出失败：${e instanceof Error ? e.message : '未知错误'}`);
+      setExportStatus(
+        t('settingsData.export.failed', {
+          message: e instanceof Error ? e.message : t('settingsData.error.unknown'),
+        }),
+      );
     }
   };
 
@@ -100,13 +110,13 @@ export default function SettingsData() {
       const validated = validateBackup(raw);
       if (!validated.ok) {
         setPendingRestore(null);
-        setImportStatus(`备份文件不可用：${validated.error}`);
+        setImportStatus(t('settingsData.restore.invalid', { error: validated.error }));
         return;
       }
       setPendingRestore({ fileName: file.name, backup: raw, keys: validated.keys });
     } catch {
       setPendingRestore(null);
-      setImportStatus('备份文件不可用：不是合法的 JSON 文件');
+      setImportStatus(t('settingsData.restore.invalidJson'));
     }
   };
 
@@ -114,18 +124,27 @@ export default function SettingsData() {
   const handleConfirmRestore = async () => {
     if (!pendingRestore) return;
     try {
-      setImportStatus('正在恢复…');
+      setImportStatus(t('settingsData.restore.inProgress'));
       await snapshotCurrent(storage);
       const result = await restoreBackup(pendingRestore.backup, storage);
 
       if (result.ok) {
-        setImportStatus(`恢复成功，已还原 ${result.restored} 项数据，页面即将刷新…`);
+        setImportStatus(t('settingsData.restore.success', { count: result.restored }));
         setTimeout(() => window.location.reload(), 2000);
       } else {
-        setImportStatus(`恢复失败：${result.error}（本机数据已保留原样）`);
+        setImportStatus(
+          t('settingsData.restore.failed', {
+            // error 在类型上是可选的，缺失时沿用「未知错误」的措辞
+            error: result.error ?? t('settingsData.error.unknown'),
+          }),
+        );
       }
     } catch (e) {
-      setImportStatus(`恢复失败：${e instanceof Error ? e.message : '未知错误'}`);
+      setImportStatus(
+        t('settingsData.restore.failedUnexpected', {
+          message: e instanceof Error ? e.message : t('settingsData.error.unknown'),
+        }),
+      );
     } finally {
       setPendingRestore(null);
     }
@@ -151,11 +170,23 @@ export default function SettingsData() {
   };
 
   const statTiles = [
-    { label: '交易记录', value: transactions.length, tone: 'text-brand bg-brand-soft' },
-    { label: '自定义规则', value: customRules.length, tone: 'text-ink bg-canvas' },
-    { label: '分类预算', value: budgets.length, tone: 'text-ink bg-canvas' },
     {
-      label: '预算月份',
+      label: t('settingsData.stats.transactions'),
+      value: transactions.length,
+      tone: 'text-brand bg-brand-soft',
+    },
+    {
+      label: t('settingsData.stats.customRules'),
+      value: customRules.length,
+      tone: 'text-ink bg-canvas',
+    },
+    {
+      label: t('settingsData.stats.budgets'),
+      value: budgets.length,
+      tone: 'text-ink bg-canvas',
+    },
+    {
+      label: t('settingsData.stats.budgetMonths'),
       value: Object.keys(totalBudgets).length,
       tone: 'text-ink bg-canvas',
     },
@@ -164,15 +195,15 @@ export default function SettingsData() {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="数据管理"
-        description="查看数据规模、导出备份，或按月份清理交易记录。"
+        title={t('settingsData.title')}
+        description={t('settingsData.description')}
         backTo="/settings"
       />
 
       <section className={CARD}>
         <h2 className={SECTION_TITLE}>
           <Database size={16} className="text-ink-subtle" aria-hidden="true" />
-          数据统计
+          {t('settingsData.stats.title')}
         </h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {statTiles.map((tile) => (
@@ -188,7 +219,7 @@ export default function SettingsData() {
       <section className={CARD}>
         <h2 className={SECTION_TITLE}>
           <ShieldCheck size={16} className="text-income" aria-hidden="true" />
-          隐私
+          {t('settingsData.privacy.title')}
         </h2>
         <label className="flex cursor-pointer items-start gap-3">
           <input
@@ -198,9 +229,11 @@ export default function SettingsData() {
             className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-brand)]"
           />
           <span className="min-w-0">
-            <span className="block text-sm font-medium text-ink">导入账单时脱敏</span>
+            <span className="block text-sm font-medium text-ink">
+              {t('settingsData.privacy.maskLabel')}
+            </span>
             <span className="mt-0.5 block text-xs text-ink-muted">
-              把银行卡号、手机号、交易单号打码后再存进本机。关掉后保留原始内容，方便按单号对账。
+              {t('settingsData.privacy.maskHint')}
             </span>
           </span>
         </label>
@@ -209,11 +242,9 @@ export default function SettingsData() {
       <section className={CARD}>
         <h2 className={SECTION_TITLE}>
           <Download size={16} className="text-ink-subtle" aria-hidden="true" />
-          数据备份与恢复
+          {t('settingsData.backup.title')}
         </h2>
-        <p className="mb-4 text-sm text-ink-muted">
-          所有数据只存在本机，不会发送到任何服务器。换机或清缓存前建议先导出备份。
-        </p>
+        <p className="mb-4 text-sm text-ink-muted">{t('settingsData.backup.description')}</p>
         <div className="flex flex-wrap gap-3">
           <button
             type="button"
@@ -221,7 +252,7 @@ export default function SettingsData() {
             className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand/90"
           >
             <Download size={15} aria-hidden="true" />
-            导出备份（已脱敏）
+            {t('settingsData.backup.exportMasked')}
           </button>
 
           <button
@@ -230,25 +261,25 @@ export default function SettingsData() {
             className="flex items-center gap-1.5 rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink transition-colors hover:bg-canvas"
           >
             <Download size={15} aria-hidden="true" />
-            导出完整备份
+            {t('settingsData.backup.exportFull')}
           </button>
 
           <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink transition-colors hover:bg-canvas">
             <Upload size={15} aria-hidden="true" />
-            恢复备份
+            {t('settingsData.backup.restoreLabel')}
             <input type="file" accept=".json" onChange={handlePickBackup} className="hidden" />
           </label>
         </div>
-        <p className="mt-3 text-xs text-ink-subtle">
-          完整备份含短信/通知原文，请自行妥善保管；恢复前会自动把当前数据存成一份快照。
-        </p>
+        <p className="mt-3 text-xs text-ink-subtle">{t('settingsData.backup.note')}</p>
 
         {/* 恢复确认：先说清楚会覆盖什么 */}
         {pendingRestore && (
           <div className="mt-3 rounded-xl border border-alert-soft bg-alert-soft p-3">
             <p className="text-sm text-alert">
-              将用「{pendingRestore.fileName}」覆盖本机的 {pendingRestore.keys.length} 项数据
-              （交易、规则、预算、设置）。当前数据会先存一份快照。
+              {t('settingsData.backup.confirmMessage', {
+                fileName: pendingRestore.fileName,
+                count: pendingRestore.keys.length,
+              })}
             </p>
             <div className="mt-2.5 flex gap-2">
               <button
@@ -256,14 +287,14 @@ export default function SettingsData() {
                 onClick={() => void handleConfirmRestore()}
                 className="rounded-lg bg-alert px-4 py-2 text-sm font-medium text-white"
               >
-                确认恢复
+                {t('settingsData.backup.confirmRestore')}
               </button>
               <button
                 type="button"
                 onClick={() => setPendingRestore(null)}
                 className="rounded-lg border border-line bg-surface px-4 py-2 text-sm text-ink"
               >
-                取消
+                {t('common.cancel')}
               </button>
             </div>
           </div>
@@ -285,15 +316,13 @@ export default function SettingsData() {
       <section className={CARD}>
         <h2 className={SECTION_TITLE}>
           <RotateCcw size={16} className="text-ink-subtle" aria-hidden="true" />
-          最近删除
+          {t('settingsData.trash.title')}
         </h2>
-        <p className="mb-3 text-xs text-ink-muted">
-          删除的交易会在这里保留 30 天（最多 20 批、500 笔），可以随时恢复；封面图也一并保留。
-        </p>
+        <p className="mb-3 text-xs text-ink-muted">{t('settingsData.trash.description')}</p>
 
         {trash.length === 0 ? (
           <p className="rounded-xl bg-canvas px-3 py-4 text-center text-sm text-ink-subtle">
-            没有可恢复的内容
+            {t('settingsData.trash.empty')}
           </p>
         ) : (
           <>
@@ -308,9 +337,13 @@ export default function SettingsData() {
                       {entry.label}
                     </span>
                     <span className="mt-0.5 block text-xs text-ink-subtle">
-                      {new Date(entry.deletedAt).toLocaleString('zh-CN')} ·{' '}
-                      {entry.transactions.length} 笔
-                      {entry.reason === 'months' ? ' · 按月清理' : ' · 单笔删除'}
+                      {[
+                        new Date(entry.deletedAt).toLocaleString(locale),
+                        t('common.count', { count: entry.transactions.length }),
+                        entry.reason === 'months'
+                          ? t('settingsData.trash.reasonMonths')
+                          : t('settingsData.trash.reasonSingle'),
+                      ].join(t('settingsData.separator'))}
                     </span>
                   </span>
                   <button
@@ -318,7 +351,7 @@ export default function SettingsData() {
                     onClick={() => handleRestoreTrash(entry.id)}
                     className="flex min-h-11 shrink-0 items-center rounded-lg bg-brand px-3 text-sm font-medium text-white transition-colors hover:bg-brand/90"
                   >
-                    恢复
+                    {t('common.restore')}
                   </button>
                 </li>
               ))}
@@ -328,11 +361,11 @@ export default function SettingsData() {
               type="button"
               onClick={() => {
                 clearTrash();
-                setTrashStatus('已清空最近删除');
+                setTrashStatus(t('settingsData.trash.cleared'));
               }}
               className="mt-3 rounded-lg border border-line px-4 py-2 text-sm text-ink-muted transition-colors hover:bg-canvas hover:text-ink"
             >
-              清空最近删除
+              {t('settingsData.trash.clearTrash')}
             </button>
           </>
         )}
@@ -347,27 +380,28 @@ export default function SettingsData() {
       <section className={CARD}>
         <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-expense">
           <TriangleAlert size={16} aria-hidden="true" />
-          清理数据
+          {t('settingsData.cleanup.title')}
         </h2>
 
         <div className="rounded-xl bg-canvas p-3">
-          <p className="text-sm font-medium text-ink">按月份清理</p>
-          <p className="mt-1 text-xs text-ink-muted">选择要删除的月份，只清掉那几个月的数据</p>
+          <p className="text-sm font-medium text-ink">{t('settingsData.cleanup.byMonth.title')}</p>
+          <p className="mt-1 text-xs text-ink-muted">
+            {t('settingsData.cleanup.byMonth.description')}
+          </p>
           <button
             type="button"
             onClick={() => navigate('/cleanup')}
             className="mt-3 flex items-center gap-1.5 rounded-lg bg-surface px-4 py-2 text-sm font-medium text-ink transition-colors hover:bg-brand-soft hover:text-brand"
           >
             <CalendarMinus size={15} aria-hidden="true" />
-            选择月份清理
+            {t('settingsData.cleanup.byMonth.action')}
           </button>
         </div>
 
         <div className="mt-3 rounded-xl border border-expense-soft p-3">
-          <p className="text-sm font-medium text-expense">清除所有数据</p>
+          <p className="text-sm font-medium text-expense">{t('settingsData.cleanup.all.title')}</p>
           <p className="mt-1 text-xs text-ink-muted">
-            清掉本机全部数据：交易记录、封面图、分类规则与反馈、预算，以及自动记账的读取规则与
-            捕获队列（含尚未处理的通知/短信原文）。此操作不可撤销，建议先导出备份。
+            {t('settingsData.cleanup.all.description')}
           </p>
 
           {!showClearConfirm ? (
@@ -377,20 +411,20 @@ export default function SettingsData() {
                 onClick={() => setShowClearConfirm(true)}
                 className="rounded-lg border border-expense-soft px-4 py-2 text-sm text-expense transition-colors hover:bg-expense-soft"
               >
-                清除所有数据
+                {t('settingsData.cleanup.all.title')}
               </button>
               <button
                 type="button"
                 onClick={() => void handleExport(true)}
                 className="rounded-lg border border-line px-4 py-2 text-sm text-ink transition-colors hover:bg-canvas"
               >
-                先导出一份备份
+                {t('settingsData.cleanup.all.exportFirst')}
               </button>
             </div>
           ) : (
             <div className="mt-3 rounded-lg bg-expense-soft p-3">
               <p className="mb-2 text-sm font-medium text-expense">
-                确定要清除所有数据吗？此操作不可撤销。
+                {t('settingsData.cleanup.all.confirm')}
               </p>
               <div className="flex gap-2">
                 <button
@@ -398,14 +432,14 @@ export default function SettingsData() {
                   onClick={() => void handleClearAll()}
                   className="rounded-lg bg-expense px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-expense/90"
                 >
-                  确认清除
+                  {t('settingsData.cleanup.all.confirmAction')}
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowClearConfirm(false)}
                   className="rounded-lg border border-line bg-surface px-4 py-2 text-sm text-ink transition-colors hover:bg-canvas"
                 >
-                  取消
+                  {t('common.cancel')}
                 </button>
               </div>
             </div>

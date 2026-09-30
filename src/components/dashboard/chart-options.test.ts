@@ -5,11 +5,14 @@ import {
   buildDailyOption,
   buildPieOption,
   buildPeriodicBreakdownOption,
+  buildAxisFormatter,
   summarizeTrend,
   summarizeDaily,
   summarizePeriodicBreakdown,
 } from './chart-options'
 import type { ChartOption } from '@/components/charts/register'
+import { createTranslator } from '@/i18n'
+import type { ChartLabels } from './chart-options'
 import { CHART_COLORS, DARK_CHART_COLORS } from '@/constants/chart-colors'
 import type {
   CategoryBreakdownPoint,
@@ -158,5 +161,119 @@ describe('图表文字替代（给屏幕阅读器的摘要）', () => {
     expect(text).toContain('600.00元')
     expect(text).toContain('3 笔')
     expect(text).toContain('8 笔')
+  })
+})
+
+describe('图表文案跟随语言（labels / t 真的传到了 ECharts）', () => {
+  const en = createTranslator('en')
+
+  /** 与 useChartLabels() 同一组取值，只是不经过 React */
+  const EN_LABELS: ChartLabels = {
+    expense: en.t('charts.expense'),
+    income: en.t('charts.income'),
+    amountLine: en.t('charts.tooltip.amount'),
+    percentLine: en.t('charts.tooltip.percent'),
+    countLine: en.t('charts.tooltip.count'),
+    dailyAverageLine: en.t('charts.tooltip.dailyAverage'),
+    fixed: en.t('charts.fixed'),
+    flexible: en.t('charts.flexible'),
+    formatAxisValue: buildAxisFormatter('en'),
+  }
+
+  it('传英文 labels 时图例/系列名换成英文，中文不再出现', () => {
+    const svg = renderToSvg(buildTrendOption(trend, CHART_COLORS, EN_LABELS))
+
+    expect(svg).toContain('Expense')
+    expect(svg).toContain('Income')
+    expect(svg).not.toContain('支出')
+  })
+
+  it('传英文 labels 时环形图两个扇区名也换成英文', () => {
+    const option = buildPeriodicBreakdownOption(breakdown, CHART_COLORS, EN_LABELS)
+
+    // 扇区名只在 tooltip 里可见（label 是关掉的），所以直接查 option 结构
+    const json = JSON.stringify(option)
+    expect(json).toContain('"name":"Fixed"')
+    expect(json).toContain('"name":"Flexible"')
+    expect(renderToSvg(option)).toContain('<path')
+  })
+
+  it('摘要用英文翻译器时输出英文，占位符全部填上', () => {
+    const trendText = summarizeTrend(trend, en.t)
+    const dailyText = summarizeDaily(daily, en.t)
+    const periodicText = summarizePeriodicBreakdown(breakdown, en.t)
+
+    expect(trendText).toContain('Monthly expense and income trend')
+    expect(trendText).toContain('3 months')
+    expect(trendText).toContain('6,266.00元')
+    expect(dailyText).toContain('3 days')
+    expect(periodicText).toContain('3 transactions')
+    expect(periodicText).toContain('8 transactions')
+
+    for (const text of [trendText, dailyText, periodicText]) {
+      expect(text).not.toMatch(/\{\w+\}/)
+    }
+  })
+
+  it('空数据分支也走文案表', () => {
+    expect(summarizeTrend([], en.t)).toBe('Monthly expense and income trend: no data yet')
+    expect(summarizeDaily([], en.t)).toBe('Daily expense bar chart: no spending this month')
+  })
+
+  it('坐标轴按各自语言的进位单位压缩：中文用万，英文用 k', () => {
+    const zh = buildAxisFormatter('zh-CN')
+    const enAxis = buildAxisFormatter('en')
+
+    // 中文：≥10000 走万
+    expect(zh(9999)).toBe('9999')
+    expect(zh(30000)).toBe('3万')
+    // 英文：≥1000 走 k，且不能被万整除而失真（25000 必须是 25k，不是 30k）
+    expect(enAxis(999)).toBe('999')
+    expect(enAxis(25000)).toBe('25k')
+    expect(enAxis(1500)).toBe('2k')
+  })
+
+  it('英文坐标轴真的渲染成 k，中文渲染成万', () => {
+    // 让趋势数据里出现 25000 与 30000 这两个量级
+    const bigTrend: MonthlyTrendPoint[] = [
+      { month: '2026-07', label: '7', expense: 25000, income: 0 },
+      { month: '2026-08', label: '8', expense: 30000, income: 0 },
+    ]
+
+    const enSvg = renderToSvg(buildTrendOption(bigTrend, CHART_COLORS, EN_LABELS))
+    const zhSvg = renderToSvg(buildTrendOption(bigTrend, CHART_COLORS))
+
+    expect(enSvg).toContain('25k')
+    // 英文里不该出现中文单位（老实现用 '0k' 后缀，25000 会被显示成 30k）
+    expect(enSvg).not.toContain('万')
+    expect(zhSvg).toContain('3万')
+  })
+
+  it('扇区名用本地化后的 displayName，但 data 里保留 category 原值供钻取', () => {
+    const localized: CategoryBreakdownPoint[] = [
+      {
+        category: '餐饮美食',
+        displayName: 'Dining',
+        amount: 120,
+        percentage: 100,
+        color: '#EF4444',
+        icon: '🍜',
+        count: 3,
+      },
+    ]
+
+    const json = JSON.stringify(buildPieOption(localized, CHART_COLORS, EN_LABELS))
+
+    expect(json).toContain('"name":"Dining"')
+    expect(json).toContain('"category":"餐饮美食"')
+    // 扇区名不该再是中文
+    expect(json).not.toContain('"name":"餐饮美食"')
+  })
+
+  it('没有 displayName 时退回 category 原值（老调用方不受影响）', () => {
+    const json = JSON.stringify(buildPieOption(pie, CHART_COLORS, EN_LABELS))
+
+    expect(json).toContain('"name":"餐饮美食"')
+    expect(json).toContain('"category":"餐饮美食"')
   })
 })

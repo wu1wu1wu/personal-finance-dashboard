@@ -48,42 +48,50 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 ```
 src/
   core/          # 纯逻辑引擎（无 React 依赖）
-  stores/        # Zustand 状态管理（3 个 store）
+  stores/        # Zustand 状态管理（交易 / 分类规则 / 预算 / 读取规则 / 设置 / 周期提醒忽略名单）
   components/    # 展示组件，按功能分组
   pages/         # 顶层路由页面
+  i18n/          # 中英双语文案与翻译器（messages/<locale>/<namespace>.ts，每命名空间一个文件）
+  pwa/           # Service Worker 源文件（构建为 dist/sw.js）、缓存策略、注册与状态
   types/         # TypeScript 类型、接口和常量
   utils/         # 工具函数（日期、格式化、ID 生成）
   storage/       # 本地存储抽象层（localStorage / Preferences）
-  hooks/         # 自定义 hooks（自动记账监听与入账）
+  hooks/         # 自定义 hooks（自动记账监听与入账、列表虚拟化）
   services/      # 预留的 API 服务层（当前为空）
 ```
 
 ### 核心数据流
 
 ```
-微信账单 CSV/XLSX → csv-parser.ts 解析 → classifier.ts 关键词规则匹配
+微信 / 支付宝账单 CSV/XLSX → csv-parser.ts（bill-format.ts 识别格式）→ classifier.ts 关键词规则匹配
 → 自动分类 → Transaction[] → stores 持久化到 localStorage
 ```
 
 ### 路由（`App.tsx`）
 
-4 个平级路由，无嵌套布局：
+平级路由，无嵌套布局，全部按路由懒加载：
 
 | 路径 | 页面 | 说明 |
 |------|------|------|
-| `/` | Dashboard | 看板：KPI 卡片、趋势图、饼图、柱状图、周期交易 |
-| `/transactions` | Transactions | 明细：上传区 + 筛选/排序 + 滚动分页 + 详情/删除，支持 `?category=` 与 `?pending=1` |
+| `/` | Dashboard | 看板：KPI 卡片、趋势图、饼图、柱状图、周期交易、周期扣款提醒 |
+| `/transactions` | Transactions | 明细：上传区 + 筛选/排序 + 列表虚拟化 + 详情/删除，支持 `?category=`、`?pending=1`、`?month=`、`?id=` |
 | `/budget` | Budget | 预算：进度条概览 + 编辑器面板 |
-| `/settings` | Settings | 设置：上传、分类规则、数据统计、备份/恢复、清空数据 |
+| `/report` | Report | 月度报告：环比、要点、分类 TOP5、每日支出、预算执行，支持 `?month=yyyy-MM` |
+| `/settings` | Settings | 设置页入口（菜单） |
+| `/settings/{import,appearance,auto-ledger,categories,data,about}` | 各设置子页 | 账单导入、外观与语言、自动记账、分类规则、数据管理、关于 |
+| `/cleanup` | Cleanup | 按月份清理 |
 
 看板的饼图支持点击钻取到 `/transactions?category=xxx`。
 
 ### 状态管理（Zustand）
 
-三个 store，均采用相同模式：
-- `transaction-store.ts` — `Transaction[]` 的增删改查、筛选、导入状态
+六个 store，均采用相同模式：
+- `transaction-store.ts` — `Transaction[]` 的增删改查、筛选、导入状态、最近删除（回收站）
 - `classification-store.ts` — 自定义分类规则、反馈学习、反馈自动升级为规则
 - `budget-store.ts` — 各类别 `Budget[]` 及总月度预算的增删改查
+- `settings-store.ts` — 导入脱敏、外观（`themeMode`）、界面语言（`locale`）
+- `capture-store.ts` — 自动记账的消息读取规则与全局忽略设置
+- `recurring-store.ts` — 周期扣款提醒里被忽略的商户名单
 
 每个 store 的模式：
 1. `loaded` 布尔标志 + `loadFromStorage()` 异步方法，首次访问时从 localStorage 懒加载

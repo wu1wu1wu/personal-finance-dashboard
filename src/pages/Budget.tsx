@@ -14,7 +14,15 @@ import {
 import BudgetProgressBar from '@/components/budget/BudgetProgressBar';
 import BudgetEditor from '@/components/budget/BudgetEditor';
 import { getCurrentMonth, buildMonthOptions } from '@/utils/date';
-import { formatCurrency, formatDateShort } from '@/utils/format';
+import { formatCurrency } from '@/utils/format';
+import {
+  categoryLabel,
+  formatDateTimeForLocale,
+  formatMonthForLocale,
+  formatMonthShortForLocale,
+  useLocale,
+  useT,
+} from '@/i18n';
 import { cn } from '@/utils/cn';
 import type { BudgetStatus } from '@/types';
 
@@ -22,6 +30,8 @@ export default function Budget() {
   const { budgets, totalBudgets, loaded: budgetLoaded, loadFromStorage: loadBudgets } =
     useBudgetStore();
   const { transactions, loaded: txnLoaded, loadFromStorage: loadTxns } = useTransactionStore();
+  const { t } = useT();
+  const locale = useLocale();
 
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
   const [showEditor, setShowEditor] = useState(false);
@@ -79,7 +89,7 @@ export default function Budget() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold text-ink">预算管理</h1>
+        <h1 className="text-xl font-semibold text-ink">{t('budget.heading')}</h1>
         <button
           type="button"
           onClick={() => setShowEditor(!showEditor)}
@@ -96,7 +106,7 @@ export default function Budget() {
           ) : (
             <SlidersHorizontal size={15} aria-hidden="true" />
           )}
-          {showEditor ? '完成' : '设置预算'}
+          {showEditor ? t('budget.done') : t('budget.setBudget')}
         </button>
       </div>
 
@@ -110,20 +120,19 @@ export default function Budget() {
       {/* 月份切换：横向滚动，窄屏不折行 */}
       <div
         role="group"
-        aria-label="选择月份"
+        aria-label={t('budget.monthPickerLabel')}
         className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         <div className="flex w-max gap-1.5">
           {months.map((m) => {
             const active = m === selectedMonth;
-            const [, month] = m.split('-');
             return (
               <button
                 key={m}
                 type="button"
                 onClick={() => setSelectedMonth(m)}
                 aria-pressed={active}
-                aria-label={`${m.replace('-', '年')}月`}
+                aria-label={formatMonthForLocale(locale, m)}
                 className={cn(
                   'tnum flex min-h-11 shrink-0 items-center rounded-lg px-3 text-sm transition-colors',
                   active
@@ -131,22 +140,22 @@ export default function Budget() {
                     : 'bg-surface text-ink-muted hover:text-ink',
                 )}
               >
-                {Number(month)}月
+                {formatMonthShortForLocale(locale, m)}
               </button>
             );
           })}
         </div>
       </div>
 
-      {isLoading && <p className="py-8 text-center text-sm text-ink-subtle">加载中…</p>}
+      {isLoading && (
+        <p className="py-8 text-center text-sm text-ink-subtle">{t('common.loading')}</p>
+      )}
 
       {!isLoading && !hasAnyBudget && (
         <div className="rounded-2xl border border-line bg-surface py-16 text-center">
           <Wallet size={28} className="mx-auto text-ink-subtle" aria-hidden="true" />
-          <p className="mt-3 text-sm font-medium text-ink">还未设置预算</p>
-          <p className="mt-1 text-sm text-ink-subtle">
-            点右上角「设置预算」为这个月设定上限
-          </p>
+          <p className="mt-3 text-sm font-medium text-ink">{t('budget.emptyTitle')}</p>
+          <p className="mt-1 text-sm text-ink-subtle">{t('budget.emptyHint')}</p>
         </div>
       )}
 
@@ -173,9 +182,13 @@ export default function Budget() {
                   exceededCount > 0 ? 'text-expense' : 'text-alert',
                 )}
               >
-                {exceededCount > 0 && <span>{exceededCount} 个分类已超支</span>}
-                {exceededCount > 0 && warningCount > 0 && <span>，</span>}
-                {warningCount > 0 && <span>{warningCount} 个分类接近预算</span>}
+                {exceededCount > 0 && (
+                  <span>{t('budget.exceededCount', { count: exceededCount })}</span>
+                )}
+                {exceededCount > 0 && warningCount > 0 && <span>{t('budget.separator')}</span>}
+                {warningCount > 0 && (
+                  <span>{t('budget.warningCount', { count: warningCount })}</span>
+                )}
               </p>
             </div>
           )}
@@ -183,7 +196,7 @@ export default function Budget() {
           {/* 总预算 */}
           {totalStatus && (
             <section>
-              <h2 className="mb-2 text-sm font-semibold text-ink">总预算执行</h2>
+              <h2 className="mb-2 text-sm font-semibold text-ink">{t('budget.totalExecution')}</h2>
               <BudgetProgressBar status={totalStatus} isTotal />
             </section>
           )}
@@ -191,7 +204,7 @@ export default function Budget() {
           {/* 分类预算 */}
           {sortedStatuses.length > 0 && (
             <section>
-              <h2 className="mb-2 text-sm font-semibold text-ink">分类预算执行</h2>
+              <h2 className="mb-2 text-sm font-semibold text-ink">{t('budget.categoryExecution')}</h2>
               <div className="space-y-2">
                 {sortedStatuses.map((status) => (
                   <BudgetProgressBar key={status.category} status={status} />
@@ -203,10 +216,8 @@ export default function Budget() {
           {/* 只设了总预算、没有分类预算时的提示 */}
           {noBudgetThisMonth && sortedStatuses.length === 0 && (
             <div className="rounded-2xl border border-line bg-surface px-4 py-8 text-center">
-              <p className="text-sm text-ink-muted">已设总预算，但未配置分类预算</p>
-              <p className="mt-1 text-xs text-ink-subtle">
-                为常用分类单独设定预算，可以更细地控制支出
-              </p>
+              <p className="text-sm text-ink-muted">{t('budget.totalOnlyTitle')}</p>
+              <p className="mt-1 text-xs text-ink-subtle">{t('budget.totalOnlyHint')}</p>
             </div>
           )}
 
@@ -215,9 +226,9 @@ export default function Budget() {
             <section>
               <h2 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-ink">
                 <TriangleAlert size={15} className="text-alert" aria-hidden="true" />
-                单笔超限
+                {t('budget.overLimitTitle')}
                 <span className="text-xs font-normal text-ink-subtle tnum">
-                  {overLimit.length} 笔
+                  {t('common.count', { count: overLimit.length })}
                 </span>
               </h2>
               <ul className="space-y-2">
@@ -228,11 +239,14 @@ export default function Budget() {
                   >
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium text-ink">
-                        {transaction.counterparty || transaction.description || '未知交易'}
+                        {transaction.counterparty ||
+                          transaction.description ||
+                          t('budget.unknownTransaction')}
                       </span>
                       <span className="mt-0.5 block truncate text-xs text-ink-subtle">
-                        {transaction.category} · {formatDateShort(transaction.transactionTime)} ·
-                        上限 {formatCurrency(limit)}
+                        {categoryLabel(locale, transaction.category)} ·{' '}
+                        {formatDateTimeForLocale(locale, transaction.transactionTime)} ·{' '}
+                        {t('budget.limitAmount', { amount: formatCurrency(limit) })}
                       </span>
                     </span>
                     <span className="shrink-0 text-right">
@@ -240,7 +254,7 @@ export default function Budget() {
                         {formatCurrency(transaction.amount)}
                       </span>
                       <span className="tnum mt-0.5 block whitespace-nowrap text-[11px] text-alert">
-                        超出 {formatCurrency(over)}
+                        {t('budget.overAmount', { amount: formatCurrency(over) })}
                       </span>
                     </span>
                   </li>

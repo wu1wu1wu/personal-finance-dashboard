@@ -1,12 +1,15 @@
 import AutoLedgerSettings from '@/components/settings/AutoLedgerSettings';
 import PageHeader from '@/components/ui/PageHeader';
+import { useT } from '@/i18n';
 
 export default function SettingsAutoLedger() {
+  const { t } = useT();
+
   return (
     <div className="space-y-4">
       <PageHeader
-        title="自动记账"
-        description="管理通知和短信权限，查看捕获状态并配置消息识别规则。"
+        title={t('settingsRules.autoLedger.title')}
+        description={t('settingsRules.autoLedger.description')}
         backTo="/settings"
       />
       <AutoLedgerSettings />

@@ -1,16 +1,18 @@
 // ============================================================
-// UploadZone - 微信账单 CSV/XLSX 拖拽或点击上传
+// UploadZone - 微信 / 支付宝账单 CSV/XLSX 拖拽或点击上传
 // ============================================================
 
 import { useState, useCallback, useRef } from 'react';
 import { CircleAlert, CircleCheck, CloudUpload, Info, LoaderCircle } from 'lucide-react';
-import { parseWechatCSV, isWechatCSVFile } from '@/core/csv-parser';
+import { parseBillFile, isBillFile } from '@/core/csv-parser';
+import type { BillFormat } from '@/core/bill-format';
 import { maskTransactions } from '@/core/data-masker';
 import { classifyTransactions } from '@/core/classifier';
 import { reconcileImportedBills, isAlreadyImported } from '@/core/transaction-reconcile';
 import { useTransactionStore } from '@/stores/transaction-store';
 import { useClassificationStore } from '@/stores/classification-store';
 import { useSettingsStore } from '@/stores/settings-store';
+import { useT } from '@/i18n';
 import { cn } from '@/utils/cn';
 
 interface UploadResult {
@@ -19,6 +21,10 @@ interface UploadResult {
   /** 从导入账单里补全的自动记账记录数 */
   enriched?: number;
   duplicates: number;
+  /** 识别出的账单来源 */
+  format?: BillFormat;
+  /** 因「钱没动」被跳过的笔数（支付宝交易关闭 / 等待付款） */
+  ignored: number;
   errors: string[];
 }
 
@@ -26,6 +32,7 @@ export default function UploadZone() {
   const [isDragging, setIsDragging] = useState(false);
   const [result, setResult] = useState<UploadResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { t } = useT();
 
   const { importing, importMessage, setImporting, getExistingIds, loadFromStorage } =
     useTransactionStore();
@@ -38,22 +45,23 @@ export default function UploadZone() {
 
       const file = files[0];
 
-      if (!isWechatCSVFile(file)) {
+      if (!isBillFile(file)) {
         setResult({
           total: 0,
           added: 0,
           duplicates: 0,
-          errors: ['请上传微信支付账单文件（.csv 或 .xlsx 格式）'],
+          ignored: 0,
+          errors: [t('billImport.upload.wrongType')],
         });
         return;
       }
 
-      setImporting(true, '正在解析账单…');
+      setImporting(true, t('billImport.upload.parsing'));
 
       try {
         await loadFromStorage();
 
-        const parseResult = await parseWechatCSV(file, {
+        const parseResult = await parseBillFile(file, {
           existingIds: getExistingIds(),
         });
 
@@ -62,6 +70,8 @@ export default function UploadZone() {
             total: 0,
             added: 0,
             duplicates: 0,
+            ignored: parseResult.ignoredCount,
+            format: parseResult.format,
             errors: parseResult.errors,
           });
           setImporting(false);
@@ -100,29 +110,40 @@ export default function UploadZone() {
           added: addedCount,
           enriched: enrichedCount,
           duplicates: parseResult.duplicateCount + duplicateByImport,
+          ignored: parseResult.ignoredCount,
+          format: parseResult.format,
           errors: parseResult.errors,
         });
 
         const parts: string[] = [];
-        if (addedCount > 0) parts.push(`新增 ${addedCount} 笔`);
-        if (enrichedCount > 0) parts.push(`补全 ${enrichedCount} 笔自动记录`);
-        if (classified.stats.classified > 0) parts.push(`自动分类 ${classified.stats.classified} 笔`);
+        if (addedCount > 0) parts.push(t('billImport.done.added', { count: addedCount }));
+        if (enrichedCount > 0)
+          parts.push(t('billImport.done.enriched', { count: enrichedCount }));
+        if (classified.stats.classified > 0)
+          parts.push(t('billImport.done.classified', { count: classified.stats.classified }));
 
         setImporting(
           false,
-          parts.length > 0 ? `导入完成，${parts.join('，')}` : '没有新记录需要导入（全部重复）',
+          parts.length > 0
+            ? t('billImport.done.summary', { parts: parts.join(t('billImport.done.separator')) })
+            : t('billImport.done.nothing'),
         );
       } catch (e) {
         setResult({
           total: 0,
           added: 0,
           duplicates: 0,
-          errors: [`导入失败：${e instanceof Error ? e.message : '未知错误'}`],
+          ignored: 0,
+          errors: [
+            t('billImport.upload.failed', {
+              message: e instanceof Error ? e.message : String(e),
+            }),
+          ],
         });
         setImporting(false);
       }
     },
-    [getExistingIds, loadFromStorage, setImporting, loadRules, getAllRules],
+    [getExistingIds, loadFromStorage, setImporting, loadRules, getAllRules, t],
   );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -164,7 +185,7 @@ export default function UploadZone() {
       <input
         ref={fileInputRef}
         type="file"
-        accept=".csv,.xlsx"
+        accept=".csv,.xlsx,.xls"
         onChange={handleFileChange}
         className="hidden"
       />
@@ -193,11 +214,9 @@ export default function UploadZone() {
 
         <span className="block">
           <span className="block text-sm font-medium text-ink">
-            {importing ? importMessage : '拖拽微信支付账单到这里'}
+            {importing ? importMessage : t('billImport.upload.prompt')}
           </span>
-          <span className="mt-1 block text-xs text-ink-subtle">
-            或点击选择文件 · 支持 CSV / XLSX · GBK / UTF-8 编码 · 自动去重
-          </span>
+          <span className="mt-1 block text-xs text-ink-subtle">{t('billImport.upload.hint')}</span>
         </span>
       </button>
 
@@ -218,19 +237,37 @@ export default function UploadZone() {
             )}
             <span className="text-sm font-medium text-ink">
               {result.added > 0
-                ? `成功导入 ${result.added} 笔新记录`
+                ? t('billImport.result.added', { count: result.added })
                 : result.duplicates > 0
-                  ? `${result.duplicates} 笔记录已存在，已跳过重复`
-                  : '导入未产生新记录'}
+                  ? t('billImport.result.duplicates', { count: result.duplicates })
+                  : t('billImport.result.none')}
             </span>
           </div>
 
           {result.total > 0 && (
             <div className="tnum mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-muted">
-              <span>解析: {result.total} 笔</span>
-              <span>新增: {result.added} 笔</span>
-              {(result.enriched ?? 0) > 0 && <span>补全: {result.enriched} 笔</span>}
-              {result.duplicates > 0 && <span>重复: {result.duplicates} 笔</span>}
+              {result.format && result.format !== 'unknown' && (
+                <span>
+                  {t('billImport.stats.format', {
+                    format: t(
+                      result.format === 'alipay'
+                        ? 'billImport.format.alipay'
+                        : 'billImport.format.wechat',
+                    ),
+                  })}
+                </span>
+              )}
+              <span>{t('billImport.stats.parsed', { count: result.total })}</span>
+              <span>{t('billImport.stats.added', { count: result.added })}</span>
+              {(result.enriched ?? 0) > 0 && (
+                <span>{t('billImport.stats.enriched', { count: result.enriched ?? 0 })}</span>
+              )}
+              {result.duplicates > 0 && (
+                <span>{t('billImport.stats.duplicates', { count: result.duplicates })}</span>
+              )}
+              {result.ignored > 0 && (
+                <span>{t('billImport.stats.ignored', { count: result.ignored })}</span>
+              )}
             </div>
           )}
 

@@ -3,7 +3,7 @@
 //        待确认收件箱支持多选批量归类
 // ============================================================
 
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
@@ -27,6 +27,14 @@ import {
   mergeFilterParams,
   type TransactionFilterState,
 } from '@/core/transaction-filters';
+import {
+  categoryLabel,
+  formatMonthForLocale,
+  formatMonthShortForLocale,
+  useLocale,
+  useT,
+} from '@/i18n';
+import type { MessageKey } from '@/i18n';
 import { formatCurrency, parseAmountInput } from '@/utils/format';
 import { cn } from '@/utils/cn';
 import { CATEGORIES } from '@/types';
@@ -36,21 +44,25 @@ import {
   summarizeTransactions,
 } from '@/core/transaction-query';
 import type { DirectionFilter, SortKey } from '@/core/transaction-query';
+import { useVirtualList } from '@/hooks/useVirtualList';
 
-/** 每次加载的条数，滚动到底自动续下一批 */
-const PAGE_SIZE = 20;
+/** 超过这个条数才开启列表虚拟化：少于此值全渲染，DOM 压力可忽略 */
+const VIRTUALIZE_THRESHOLD = 60;
 
-const DIRECTION_OPTIONS: { value: DirectionFilter; label: string }[] = [
-  { value: 'all', label: '全部' },
-  { value: 'expense', label: '支出' },
-  { value: 'income', label: '收入' },
+/** 行高估算值（真实高度由 useVirtualList 量出来后覆盖） */
+const ROW_HEIGHT_ESTIMATE = 72;
+
+const DIRECTION_OPTIONS: { value: DirectionFilter; labelKey: MessageKey }[] = [
+  { value: 'all', labelKey: 'common.all' },
+  { value: 'expense', labelKey: 'common.expense' },
+  { value: 'income', labelKey: 'common.income' },
 ];
 
-const SORT_OPTIONS: { value: SortKey; label: string }[] = [
-  { value: 'time-desc', label: '时间：新 → 旧' },
-  { value: 'time-asc', label: '时间：旧 → 新' },
-  { value: 'amount-desc', label: '金额：大 → 小' },
-  { value: 'amount-asc', label: '金额：小 → 大' },
+const SORT_OPTIONS: { value: SortKey; labelKey: MessageKey }[] = [
+  { value: 'time-desc', labelKey: 'transactions.sort.timeDesc' },
+  { value: 'time-asc', labelKey: 'transactions.sort.timeAsc' },
+  { value: 'amount-desc', labelKey: 'transactions.sort.amountDesc' },
+  { value: 'amount-asc', labelKey: 'transactions.sort.amountAsc' },
 ];
 
 export default function Transactions() {
@@ -65,6 +77,8 @@ export default function Transactions() {
   const customRules = useClassificationStore((s) => s.customRules);
   const loadRules = useClassificationStore((s) => s.loadFromStorage);
   const [searchParams, setSearchParams] = useSearchParams();
+  const { t } = useT();
+  const locale = useLocale();
 
   // 筛选条件全部存在 URL 里：刷新、返回、分享链接都能还原；
   // 看板钻取用的 ?category= / ?pending=1 / ?id= 走同一套解析。
@@ -115,7 +129,6 @@ export default function Transactions() {
     applyFilters,
   ]);
 
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
@@ -157,36 +170,23 @@ export default function Transactions() {
     [filteredTransactions],
   );
 
-  // 条件变化时回到第一批，并退出批量模式
+  // 条件变化时退出批量模式（列表内容变了，之前勾选的 ids 不再有意义）
   useEffect(() => {
-    setVisibleCount(PAGE_SIZE);
     setBatchMode(false);
     setBatchIds([]);
   }, [activeCategory, month, direction, keyword, sort, minAmount, maxAmount]);
 
+  // 只渲染视口附近的行：上万条记录也不会把 DOM 撑爆
+  const list = useVirtualList({
+    itemCount: filteredTransactions.length,
+    estimatedItemHeight: ROW_HEIGHT_ESTIMATE,
+    threshold: VIRTUALIZE_THRESHOLD,
+  });
+
   const visibleTransactions = useMemo(
-    () => filteredTransactions.slice(0, visibleCount),
-    [filteredTransactions, visibleCount],
+    () => filteredTransactions.slice(list.startIndex, list.endIndex),
+    [filteredTransactions, list.startIndex, list.endIndex],
   );
-
-  const hasMore = visibleCount < filteredTransactions.length;
-
-  // 滚动到列表底部自动加载下一批
-  const sentinelRef = useRef<HTMLLIElement | null>(null);
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el || !hasMore) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting) {
-          setVisibleCount((count) => count + PAGE_SIZE);
-        }
-      },
-      { rootMargin: '240px' },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [hasMore, filteredTransactions.length]);
 
   // 选中的交易直接读 store，删除后弹窗自动同步
   const selectedTxn = useMemo(() => {
@@ -207,9 +207,9 @@ export default function Transactions() {
     (id: string) => {
       const entryId = deleteTransaction(id);
       setPendingDeleteId(null);
-      if (entryId) setUndo({ entryId, label: '已删除 1 笔交易' });
+      if (entryId) setUndo({ entryId, label: t('transactions.deleted', { count: 1 }) });
     },
-    [deleteTransaction],
+    [deleteTransaction, t],
   );
 
   const handleUndo = useCallback(() => {
@@ -251,26 +251,28 @@ export default function Transactions() {
       .filter((u) => u.category !== '待确认');
     const changed = applyCategories(updates);
     if (changed > 0) {
-      setReclassifyHint(`已重新归类 ${changed} 笔`);
+      setReclassifyHint(t('transactions.reclassify.done', { count: changed }));
       setTimeout(() => setReclassifyHint(null), 4000);
     } else {
-      setReclassifyHint('没有可以自动归类的记录');
+      setReclassifyHint(t('transactions.reclassify.empty'));
       setTimeout(() => setReclassifyHint(null), 4000);
     }
   };
 
   const monthChips = [
-    { value: '', label: '全部' },
-    ...months.map((m) => ({ value: m, label: `${Number(m.split('-')[1])}月` })),
+    { value: '', label: t('common.all') },
+    ...months.map((m) => ({ value: m, label: formatMonthShortForLocale(locale, m) })),
   ];
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold text-ink">交易明细</h1>
+        <h1 className="text-xl font-semibold text-ink">{t('transactions.title')}</h1>
         <div className="flex items-center gap-2">
           {loaded && filteredTransactions.length > 0 && (
-            <p className="text-xs text-ink-subtle tnum">共 {summary.count} 笔</p>
+            <p className="text-xs text-ink-subtle tnum">
+              {t('transactions.summaryCount', { count: summary.count })}
+            </p>
           )}
           {filters.pendingOnly && filteredTransactions.length > 0 && (
             <>
@@ -281,7 +283,7 @@ export default function Transactions() {
                   className="flex min-h-11 items-center gap-1 rounded-lg bg-canvas px-2.5 text-xs font-medium text-ink-muted transition-colors hover:text-ink"
                 >
                   <RefreshCw size={13} aria-hidden="true" />
-                  重新识别
+                  {t('transactions.reclassify')}
                 </button>
               )}
               <button
@@ -299,7 +301,7 @@ export default function Transactions() {
                 ) : (
                   <ListChecks size={13} aria-hidden="true" />
                 )}
-                {batchMode ? '取消' : '批量归类'}
+                {batchMode ? t('common.cancel') : t('transactions.batch.enter')}
               </button>
             </>
           )}
@@ -320,7 +322,7 @@ export default function Transactions() {
       {monthChips.length > 1 && (
         <div
           role="group"
-          aria-label="选择月份"
+          aria-label={t('transactions.month.groupLabel')}
           className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           <div className="flex w-max gap-1.5">
@@ -332,7 +334,11 @@ export default function Transactions() {
                   type="button"
                   onClick={() => applyFilters({ month: chip.value })}
                   aria-pressed={active}
-                  aria-label={chip.value ? `${chip.value.replace('-', '年')}月` : '全部月份'}
+                  aria-label={
+                    chip.value
+                      ? formatMonthForLocale(locale, chip.value)
+                      : t('transactions.month.all')
+                  }
                   className={cn(
                     'tnum flex min-h-11 shrink-0 items-center rounded-lg px-3 text-sm transition-colors',
                     active
@@ -351,7 +357,11 @@ export default function Transactions() {
       {/* 收支方向 + 排序 + 搜索 */}
       <div className="space-y-2 rounded-xl border border-line bg-surface p-3">
         <div className="flex flex-wrap items-center gap-2">
-          <div role="group" aria-label="收支方向" className="flex rounded-lg bg-canvas p-0.5">
+          <div
+            role="group"
+            aria-label={t('transactions.directionGroup')}
+            className="flex rounded-lg bg-canvas p-0.5"
+          >
             {DIRECTION_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
@@ -365,13 +375,13 @@ export default function Transactions() {
                     : 'text-ink-muted hover:text-ink',
                 )}
               >
-                {opt.label}
+                {t(opt.labelKey)}
               </button>
             ))}
           </div>
 
           <label className="sr-only" htmlFor="txn-sort">
-            排序方式
+            {t('transactions.sort.label')}
           </label>
           <select
             id="txn-sort"
@@ -381,7 +391,7 @@ export default function Transactions() {
           >
             {SORT_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
-                {opt.label}
+                {t(opt.labelKey)}
               </option>
             ))}
           </select>
@@ -399,8 +409,8 @@ export default function Transactions() {
             autoComplete="off"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            aria-label="搜索交易对方或商品说明"
-            placeholder="搜索交易对方或商品说明…"
+            aria-label={t('transactions.searchLabel')}
+            placeholder={t('transactions.searchPlaceholder')}
             className="w-full rounded-lg border border-line bg-surface py-2 pl-9 pr-3 text-sm text-ink placeholder:text-ink-subtle focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
           />
         </div>
@@ -408,7 +418,7 @@ export default function Transactions() {
         {/* 金额区间：按绝对值比较，收入和支出一视同仁 */}
         <div className="flex items-center gap-2">
           <label className="sr-only" htmlFor="txn-min-amount">
-            最小金额
+            {t('transactions.minAmount')}
           </label>
           <input
             id="txn-min-amount"
@@ -418,12 +428,12 @@ export default function Transactions() {
             step="0.01"
             value={minAmount}
             onChange={(e) => setMinAmount(e.target.value)}
-            placeholder="最小金额"
+            placeholder={t('transactions.minAmount')}
             className="tnum w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-subtle focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
           />
-          <span className="shrink-0 text-xs text-ink-subtle">至</span>
+          <span className="shrink-0 text-xs text-ink-subtle">{t('transactions.amountTo')}</span>
           <label className="sr-only" htmlFor="txn-max-amount">
-            最大金额
+            {t('transactions.maxAmount')}
           </label>
           <input
             id="txn-max-amount"
@@ -433,7 +443,7 @@ export default function Transactions() {
             step="0.01"
             value={maxAmount}
             onChange={(e) => setMaxAmount(e.target.value)}
-            placeholder="最大金额"
+            placeholder={t('transactions.maxAmount')}
             className="tnum w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-subtle focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
           />
           {(minAmount || maxAmount) && (
@@ -443,7 +453,7 @@ export default function Transactions() {
                 setMinAmount('');
                 setMaxAmount('');
               }}
-              aria-label="清除金额筛选"
+              aria-label={t('transactions.clearAmountFilter')}
               className="shrink-0 rounded-lg px-2 py-2 text-ink-subtle hover:text-ink"
             >
               <X size={14} aria-hidden="true" />
@@ -456,15 +466,21 @@ export default function Transactions() {
       {activeCategory && (
         <div className="flex items-center gap-2">
           <span className="text-sm text-ink-muted">
-            {filters.pendingOnly ? '待确认收件箱：' : '筛选分类：'}
+            {filters.pendingOnly
+              ? t('transactions.pendingInboxPrefix')
+              : t('transactions.categoryFilterPrefix')}
           </span>
           <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-3 py-1 text-sm text-brand">
             <CategoryIcon category={activeCategory} size={14} />
-            {activeCategory}
+            {categoryLabel(locale, activeCategory)}
             <button
               type="button"
               onClick={clearFilter}
-              aria-label={filters.pendingOnly ? '退出收件箱' : '清除分类筛选'}
+              aria-label={
+                filters.pendingOnly
+                  ? t('transactions.exitInbox')
+                  : t('transactions.clearCategoryFilter')
+              }
               className="ml-0.5 text-brand/70 hover:text-brand"
             >
               <X size={13} aria-hidden="true" />
@@ -476,9 +492,13 @@ export default function Transactions() {
       {/* 汇总 */}
       {loaded && filteredTransactions.length > 0 && (
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-muted tnum">
-          <span>支出: {formatCurrency(summary.expense)}</span>
-          <span>收入: {formatCurrency(summary.income)}</span>
-          {summary.transfer > 0 && <span>转账: {formatCurrency(summary.transfer)}</span>}
+          <span>{t('transactions.summary.expense', { amount: formatCurrency(summary.expense) })}</span>
+          <span>{t('transactions.summary.income', { amount: formatCurrency(summary.income) })}</span>
+          {summary.transfer > 0 && (
+            <span>
+              {t('transactions.summary.transfer', { amount: formatCurrency(summary.transfer) })}
+            </span>
+          )}
         </div>
       )}
 
@@ -488,30 +508,37 @@ export default function Transactions() {
           {transactions.length === 0 ? (
             <>
               <ReceiptText size={28} className="mx-auto text-ink-subtle" aria-hidden="true" />
-              <p className="mt-3 text-sm font-medium text-ink">还没有交易记录</p>
-              <p className="mt-1 text-sm text-ink-subtle">
-                到「设置」导入微信账单，或点底部（桌面端在右上角）的「记一笔」
-              </p>
+              <p className="mt-3 text-sm font-medium text-ink">{t('transactions.empty.title')}</p>
+              <p className="mt-1 text-sm text-ink-subtle">{t('transactions.empty.hint')}</p>
             </>
           ) : (
             <>
               <SearchX size={28} className="mx-auto text-ink-subtle" aria-hidden="true" />
-              <p className="mt-3 text-sm font-medium text-ink">没有符合筛选的交易</p>
+              <p className="mt-3 text-sm font-medium text-ink">
+                {t('transactions.emptyFiltered.title')}
+              </p>
               <button
                 type="button"
                 onClick={resetAllFilters}
                 className="mt-2 text-sm text-brand hover:underline"
               >
-                清除全部筛选条件
+                {t('transactions.emptyFiltered.action')}
               </button>
             </>
           )}
         </div>
       )}
 
-      {/* 交易列表 */}
+      {/* 交易列表：虚拟化时用上下内边距撑出总高度，只挂载窗口内的行 */}
       {visibleTransactions.length > 0 && (
-        <ul className={cn('space-y-2', batchMode && 'pb-16')}>
+        <ul
+          ref={list.listRef}
+          className={cn('space-y-2', batchMode && 'pb-16')}
+          style={{
+            paddingTop: list.virtualized ? list.offsetY : undefined,
+            paddingBottom: list.virtualized ? list.bottomHeight : undefined,
+          }}
+        >
           {visibleTransactions.map((txn) => (
             <TransactionListItem
               key={txn.id}
@@ -528,24 +555,6 @@ export default function Transactions() {
               onCancelDelete={cancelDelete}
             />
           ))}
-
-          {/* 兜底按钮：自动加载之外也给一个明确出口 */}
-          {hasMore && (
-            <li ref={sentinelRef} className="py-3 text-center">
-              <button
-                type="button"
-                onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}
-                className="rounded-lg border border-line bg-surface px-5 py-2 text-sm text-ink-muted transition-colors hover:bg-canvas"
-              >
-                加载更多（还剩 {filteredTransactions.length - visibleCount} 条）
-              </button>
-            </li>
-          )}
-          {!hasMore && filteredTransactions.length > PAGE_SIZE && (
-            <li className="py-3 text-center text-xs text-ink-subtle tnum">
-              已加载全部 {filteredTransactions.length} 条
-            </li>
-          )}
         </ul>
       )}
 
@@ -554,7 +563,7 @@ export default function Transactions() {
         <div className="fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-40 px-4 md:bottom-4">
           <div className="mx-auto flex max-w-md items-center gap-3 rounded-xl border border-line bg-surface p-3 shadow-lg">
             <span className="min-w-0 flex-1 text-sm text-ink-muted">
-              已选 <span className="tnum font-semibold text-ink">{batchIds.length}</span> 笔
+              {t('transactions.batch.selected', { count: batchIds.length })}
             </span>
 
             <DropdownMenu.Root>
@@ -564,7 +573,7 @@ export default function Transactions() {
                   disabled={batchIds.length === 0}
                   className="flex min-h-11 items-center gap-1.5 rounded-lg bg-brand px-3 text-sm font-medium text-white transition-colors hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  设为分类
+                  {t('transactions.batch.setCategory')}
                   <span aria-hidden="true">▾</span>
                 </button>
               </DropdownMenu.Trigger>
@@ -584,7 +593,7 @@ export default function Transactions() {
                       className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-ink outline-none data-[highlighted]:bg-canvas"
                     >
                       <CategoryIcon category={cat.name} size={14} />
-                      {cat.name}
+                      {categoryLabel(locale, cat.name)}
                     </DropdownMenu.Item>
                   ))}
                 </DropdownMenu.Content>

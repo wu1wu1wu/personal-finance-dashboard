@@ -5,6 +5,8 @@
 import { Calendar, CalendarDays, CalendarRange, RefreshCw, X } from 'lucide-react';
 import type { PeriodicTransaction } from '@/types';
 import { CATEGORIES } from '@/types';
+import { categoryLabel, formatDateForLocale, useLocale, useT } from '@/i18n';
+import type { MessageKey } from '@/i18n';
 import { formatCurrency } from '@/utils/format';
 import { cn } from '@/utils/cn';
 import CategoryIcon from '@/components/ui/CategoryIcon';
@@ -14,27 +16,42 @@ interface PeriodicListProps {
   onTogglePeriodic?: (counterparty: string, amount: number) => void;
 }
 
-/** 周期标签映射 */
+/** 周期标签映射：图标与配色固定，文案按语言取 */
 const PERIOD_LABELS: Record<
   string,
-  { label: string; icon: typeof Calendar; className: string }
+  { labelKey: MessageKey; icon: typeof Calendar; className: string }
 > = {
-  monthly: { label: '月度', icon: CalendarDays, className: 'bg-brand-soft text-brand' },
-  quarterly: { label: '季度', icon: CalendarRange, className: 'bg-canvas text-ink-muted' },
-  yearly: { label: '年度', icon: Calendar, className: 'bg-canvas text-ink-muted' },
+  monthly: {
+    labelKey: 'periodic.period.monthly',
+    icon: CalendarDays,
+    className: 'bg-brand-soft text-brand',
+  },
+  quarterly: {
+    labelKey: 'periodic.period.quarterly',
+    icon: CalendarRange,
+    className: 'bg-canvas text-ink-muted',
+  },
+  yearly: {
+    labelKey: 'periodic.period.yearly',
+    icon: Calendar,
+    className: 'bg-canvas text-ink-muted',
+  },
 };
 
 export default function PeriodicList({ data, onTogglePeriodic }: PeriodicListProps) {
+  const { t } = useT();
+  const locale = useLocale();
+
   if (data.length === 0) {
     return (
       <section className="rounded-2xl border border-line bg-surface p-4">
         <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-ink">
           <RefreshCw size={15} className="text-ink-subtle" aria-hidden="true" />
-          周期性交易
+          {t('periodic.listTitle')}
         </h3>
         <div className="py-8 text-center">
-          <p className="text-sm text-ink-muted">暂未检测到周期性交易</p>
-          <p className="mt-1 text-xs text-ink-subtle">连续 3 个月以上相同金额的支出会被自动识别</p>
+          <p className="text-sm text-ink-muted">{t('periodic.emptyTitle')}</p>
+          <p className="mt-1 text-xs text-ink-subtle">{t('periodic.emptyHint')}</p>
         </div>
       </section>
     );
@@ -45,9 +62,11 @@ export default function PeriodicList({ data, onTogglePeriodic }: PeriodicListPro
       <div className="mb-3 flex items-center justify-between">
         <h3 className="flex items-center gap-1.5 text-sm font-semibold text-ink">
           <RefreshCw size={15} className="text-ink-subtle" aria-hidden="true" />
-          周期性交易
+          {t('periodic.listTitle')}
         </h3>
-        <span className="text-xs text-ink-subtle tnum">检测到 {data.length} 项</span>
+        <span className="text-xs text-ink-subtle tnum">
+          {t('periodic.detected', { count: data.length })}
+        </span>
       </div>
 
       <ul className="space-y-1">
@@ -75,7 +94,7 @@ export default function PeriodicList({ data, onTogglePeriodic }: PeriodicListPro
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="truncate text-sm font-medium text-ink">
-                    {item.counterparty || '未知'}
+                    {item.counterparty || t('periodic.unknownCounterparty')}
                   </span>
                   <span
                     className={cn(
@@ -84,17 +103,21 @@ export default function PeriodicList({ data, onTogglePeriodic }: PeriodicListPro
                     )}
                   >
                     <PeriodIcon size={11} aria-hidden="true" />
-                    {periodInfo.label}
+                    {t(periodInfo.labelKey)}
                   </span>
                 </div>
                 <p className="mt-0.5 truncate text-xs text-ink-subtle">
                   {item.nextDate
-                    ? `下次预计 ${item.nextDate}`
+                    ? t('periodic.nextExpected', {
+                        date: formatDateForLocale(locale, item.nextDate),
+                      })
                     : item.lastDate
-                      ? `最近 ${item.lastDate}`
+                      ? t('periodic.lastSeen', {
+                          date: formatDateForLocale(locale, item.lastDate),
+                        })
                       : ''}
                   {' · '}
-                  {item.category}
+                  {categoryLabel(locale, item.category)}
                 </p>
               </div>
 
@@ -124,7 +147,7 @@ export default function PeriodicList({ data, onTogglePeriodic }: PeriodicListPro
                 <button
                   type="button"
                   onClick={() => onTogglePeriodic(item.counterparty, item.amount)}
-                  aria-label={`取消标记 ${item.counterparty} 为周期交易`}
+                  aria-label={t('periodic.unmark', { name: item.counterparty })}
                   // 常驻可见：触屏上没有 hover，藏起来的按钮既点不到又容易被误触
                   className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-expense-soft hover:text-expense"
                 >

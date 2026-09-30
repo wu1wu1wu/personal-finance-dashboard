@@ -11,6 +11,7 @@ import { Check, ChevronDown, Pencil, Plus, Trash } from 'lucide-react';
 import { CATEGORIES, type CaptureRule } from '@/types';
 import { useCaptureRuleStore } from '@/stores/capture-rule-store';
 import { parseCapturedTransaction } from '@/core/transaction-capture';
+import { categoryLabel, transactionTypeLabel, useLocale, useT } from '@/i18n';
 import { formatCurrency } from '@/utils/format';
 import { cn } from '@/utils/cn';
 import CategoryIcon from '@/components/ui/CategoryIcon';
@@ -59,6 +60,8 @@ function draftFromRule(rule: CaptureRule): RuleDraft {
 }
 
 export default function CaptureRuleEditor() {
+  const { t } = useT();
+  const locale = useLocale();
   const { rules, settings, loadFromStorage, addRule, updateRule, removeRule, setSettings } =
     useCaptureRuleStore();
 
@@ -142,13 +145,13 @@ export default function CaptureRuleEditor() {
     });
   };
 
+  const separator = t('settingsRules.separator');
+
   return (
     <div className="space-y-4">
       {/* 规则列表 */}
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-ink-muted">
-          内置规则覆盖不到的银行或 App，可以自己加一条
-        </p>
+        <p className="text-sm text-ink-muted">{t('settingsRules.captureRule.hint')}</p>
         {!showForm && (
           <button
             type="button"
@@ -156,16 +159,16 @@ export default function CaptureRuleEditor() {
             className="flex shrink-0 items-center gap-1 rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-brand/90"
           >
             <Plus size={13} aria-hidden="true" />
-            添加规则
+            {t('settingsRules.addRule')}
           </button>
         )}
       </div>
 
       {rules.length === 0 && !showForm && (
         <div className="rounded-xl border border-line bg-surface py-8 text-center">
-          <p className="text-sm text-ink-muted">暂无自定义规则</p>
+          <p className="text-sm text-ink-muted">{t('settingsRules.rulesEmpty')}</p>
           <p className="mt-1 text-xs text-ink-subtle">
-            比如你常收到某银行的通知读不出来，就可以为它加一条
+            {t('settingsRules.captureRule.emptyHint')}
           </p>
         </div>
       )}
@@ -183,7 +186,12 @@ export default function CaptureRuleEditor() {
               <button
                 type="button"
                 onClick={() => updateRule(rule.id, { enabled: !rule.enabled })}
-                aria-label={rule.enabled ? `停用规则 ${rule.name}` : `启用规则 ${rule.name}`}
+                aria-label={t(
+                  rule.enabled
+                    ? 'settingsRules.captureRule.disableAria'
+                    : 'settingsRules.captureRule.enableAria',
+                  { name: rule.name },
+                )}
                 aria-pressed={rule.enabled}
                 className={cn(
                   'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 transition-colors',
@@ -196,10 +204,27 @@ export default function CaptureRuleEditor() {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-ink">{rule.name}</p>
                 <p className="mt-0.5 text-xs text-ink-subtle">
-                  {rule.direction === 'income' ? '记为收入' : '记为支出'}
-                  {rule.category && ` · 归到${rule.category}`}
-                  {rule.contains.length > 0 && ` · 包含「${rule.contains.join('、')}」`}
-                  {rule.packageMatch && ` · 来源含 ${rule.packageMatch}`}
+                  {[
+                    t(
+                      rule.direction === 'income'
+                        ? 'settingsRules.captureRule.asIncome'
+                        : 'settingsRules.captureRule.asExpense',
+                    ),
+                    rule.category &&
+                      t('settingsRules.captureRule.withCategory', {
+                        category: categoryLabel(locale, rule.category),
+                      }),
+                    rule.contains.length > 0 &&
+                      t('settingsRules.captureRule.withContains', {
+                        keywords: rule.contains.join('、'),
+                      }),
+                    rule.packageMatch &&
+                      t('settingsRules.captureRule.withPackage', {
+                        packageMatch: rule.packageMatch,
+                      }),
+                  ]
+                    .filter(Boolean)
+                    .join(separator)}
                 </p>
               </div>
 
@@ -207,7 +232,7 @@ export default function CaptureRuleEditor() {
                 <button
                   type="button"
                   onClick={() => openEdit(rule)}
-                  aria-label={`修改规则 ${rule.name}`}
+                  aria-label={t('settingsRules.captureRule.editAria', { name: rule.name })}
                   className="flex h-11 w-11 items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-canvas hover:text-brand"
                 >
                   <Pencil size={14} aria-hidden="true" />
@@ -215,7 +240,7 @@ export default function CaptureRuleEditor() {
                 <button
                   type="button"
                   onClick={() => removeRule(rule.id)}
-                  aria-label={`删除规则 ${rule.name}`}
+                  aria-label={t('settingsRules.captureRule.deleteAria', { name: rule.name })}
                   className="flex h-11 w-11 items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-expense-soft hover:text-expense"
                 >
                   <Trash size={14} aria-hidden="true" />
@@ -231,7 +256,7 @@ export default function CaptureRuleEditor() {
         <div className="space-y-3 rounded-xl bg-canvas p-3">
           <div>
             <label htmlFor="cr-name" className="mb-1 block text-xs font-medium text-ink">
-              规则名
+              {t('settingsRules.captureRule.name')}
             </label>
             <input
               id="cr-name"
@@ -240,14 +265,14 @@ export default function CaptureRuleEditor() {
               autoComplete="off"
               value={draft.name}
               onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-              placeholder="如：招商银行短信"
+              placeholder={t('settingsRules.captureRule.namePlaceholder')}
               className={INPUT_CLASS}
             />
           </div>
 
           <div>
             <label htmlFor="cr-contains" className="mb-1 block text-xs font-medium text-ink">
-              消息包含（任一命中即可，多个用逗号分隔）
+              {t('settingsRules.captureRule.contains')}
             </label>
             <input
               id="cr-contains"
@@ -256,14 +281,14 @@ export default function CaptureRuleEditor() {
               autoComplete="off"
               value={draft.contains}
               onChange={(e) => setDraft({ ...draft, contains: e.target.value })}
-              placeholder="如：招商银行、尾号1234"
+              placeholder={t('settingsRules.captureRule.containsPlaceholder')}
               className={INPUT_CLASS}
             />
           </div>
 
           <div>
             <label htmlFor="cr-excludes" className="mb-1 block text-xs font-medium text-ink">
-              忽略包含（选填）
+              {t('settingsRules.captureRule.excludes')}
             </label>
             <input
               id="cr-excludes"
@@ -272,14 +297,14 @@ export default function CaptureRuleEditor() {
               autoComplete="off"
               value={draft.excludes}
               onChange={(e) => setDraft({ ...draft, excludes: e.target.value })}
-              placeholder="如：待支付、验证码"
+              placeholder={t('settingsRules.captureRule.excludesPlaceholder')}
               className={INPUT_CLASS}
             />
           </div>
 
           <div>
             <label htmlFor="cr-regex" className="mb-1 block text-xs font-medium text-ink">
-              金额正则（选填，第一个括号里是金额）
+              {t('settingsRules.captureRule.amountRegex')}
             </label>
             <input
               id="cr-regex"
@@ -289,22 +314,28 @@ export default function CaptureRuleEditor() {
               spellCheck={false}
               value={draft.amountRegex}
               onChange={(e) => setDraft({ ...draft, amountRegex: e.target.value })}
-              placeholder="如：金额=([\d,.]+)"
+              placeholder={t('settingsRules.captureRule.amountRegexPlaceholder')}
               className={cn(INPUT_CLASS, 'font-mono text-xs')}
             />
             <p className="mt-1 text-[11px] text-ink-subtle">
-              留空就用内置的「¥ / 元 / 人民币」提取方式
+              {t('settingsRules.captureRule.amountRegexHint')}
             </p>
           </div>
 
           <div className="flex gap-3">
             <div className="flex-1">
-              <span className="mb-1 block text-xs font-medium text-ink">收支方向</span>
-              <div role="group" aria-label="收支方向" className="flex rounded-lg bg-surface p-0.5">
+              <span className="mb-1 block text-xs font-medium text-ink">
+                {t('settingsRules.captureRule.direction')}
+              </span>
+              <div
+                role="group"
+                aria-label={t('settingsRules.captureRule.direction')}
+                className="flex rounded-lg bg-surface p-0.5"
+              >
                 {(
                   [
-                    { value: 'expense', label: '支出' },
-                    { value: 'income', label: '收入' },
+                    { value: 'expense', labelKey: 'common.expense' },
+                    { value: 'income', labelKey: 'common.income' },
                   ] as const
                 ).map((opt) => (
                   <button
@@ -319,7 +350,7 @@ export default function CaptureRuleEditor() {
                         : 'text-ink-muted',
                     )}
                   >
-                    {opt.label}
+                    {t(opt.labelKey)}
                   </button>
                 ))}
               </div>
@@ -327,7 +358,7 @@ export default function CaptureRuleEditor() {
 
             <div className="flex-1">
               <label htmlFor="cr-category" className="mb-1 block text-xs font-medium text-ink">
-                归入分类（选填）
+                {t('settingsRules.captureRule.category')}
               </label>
               <select
                 id="cr-category"
@@ -335,10 +366,10 @@ export default function CaptureRuleEditor() {
                 onChange={(e) => setDraft({ ...draft, category: e.target.value })}
                 className={INPUT_CLASS}
               >
-                <option value="">交给自动分类</option>
+                <option value="">{t('settingsRules.captureRule.autoCategory')}</option>
                 {CATEGORIES.filter((c) => c.name !== '待确认').map((cat) => (
                   <option key={cat.name} value={cat.name}>
-                    {cat.name}
+                    {categoryLabel(locale, cat.name)}
                   </option>
                 ))}
               </select>
@@ -347,11 +378,11 @@ export default function CaptureRuleEditor() {
 
           <details className="rounded-lg bg-surface px-3 py-2">
             <summary className="cursor-pointer list-none text-xs font-medium text-ink [&::-webkit-details-marker]:hidden">
-              按来源 App 限定（选填）
+              {t('settingsRules.captureRule.packageMatch')}
             </summary>
             <div className="pt-2">
               <label htmlFor="cr-package" className="sr-only">
-                来源包名
+                {t('settingsRules.captureRule.packageName')}
               </label>
               <input
                 id="cr-package"
@@ -361,11 +392,11 @@ export default function CaptureRuleEditor() {
                 spellCheck={false}
                 value={draft.packageMatch}
                 onChange={(e) => setDraft({ ...draft, packageMatch: e.target.value })}
-                placeholder="如：com.icbc"
+                placeholder={t('settingsRules.captureRule.packagePlaceholder')}
                 className={cn(INPUT_CLASS, 'font-mono text-xs')}
               />
               <p className="mt-1 text-[11px] text-ink-subtle">
-                包名可以在上面诊断列表里看到
+                {t('settingsRules.captureRule.packageHint')}
               </p>
             </div>
           </details>
@@ -377,14 +408,14 @@ export default function CaptureRuleEditor() {
               disabled={!canSave}
               className="rounded-lg bg-brand px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {editingId ? '保存修改' : '添加规则'}
+              {editingId ? t('settingsRules.saveChanges') : t('settingsRules.addRule')}
             </button>
             <button
               type="button"
               onClick={closeForm}
               className="rounded-lg bg-surface px-4 py-1.5 text-sm text-ink-muted transition-colors hover:text-ink"
             >
-              取消
+              {t('common.cancel')}
             </button>
           </div>
         </div>
@@ -393,7 +424,7 @@ export default function CaptureRuleEditor() {
       {/* 测试框 */}
       <details className="group rounded-xl border border-line bg-surface">
         <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-medium text-ink [&::-webkit-details-marker]:hidden">
-          粘贴一条消息试一下
+          {t('settingsRules.captureRule.testTitle')}
           <ChevronDown
             size={15}
             className="text-ink-subtle transition-transform group-open:rotate-180"
@@ -403,7 +434,7 @@ export default function CaptureRuleEditor() {
 
         <div className="space-y-2 border-t border-line p-3">
           <label htmlFor="cr-test" className="sr-only">
-            测试消息内容
+            {t('settingsRules.captureRule.testTextLabel')}
           </label>
           <textarea
             id="cr-test"
@@ -411,11 +442,11 @@ export default function CaptureRuleEditor() {
             rows={3}
             value={testText}
             onChange={(e) => setTestText(e.target.value)}
-            placeholder="把手机上收到的那条短信或通知原文粘到这里…"
+            placeholder={t('settingsRules.captureRule.testPlaceholder')}
             className={cn(INPUT_CLASS, 'resize-y')}
           />
           <label htmlFor="cr-test-pkg" className="sr-only">
-            来源包名
+            {t('settingsRules.captureRule.packageName')}
           </label>
           <input
             id="cr-test-pkg"
@@ -425,7 +456,7 @@ export default function CaptureRuleEditor() {
             spellCheck={false}
             value={testPackage}
             onChange={(e) => setTestPackage(e.target.value)}
-            placeholder="来源包名（选填），如 com.tencent.mm"
+            placeholder={t('settingsRules.captureRule.testPackagePlaceholder')}
             className={cn(INPUT_CLASS, 'font-mono text-xs')}
           />
 
@@ -441,18 +472,33 @@ export default function CaptureRuleEditor() {
               {testResult ? (
                 <>
                   <p className="font-medium">
-                    会记一笔{testResult.transactionType}：{formatCurrency(Math.abs(testResult.amount))}
+                    {t('settingsRules.captureRule.testMatch', {
+                      type: transactionTypeLabel(locale, testResult.transactionType),
+                      amount: formatCurrency(Math.abs(testResult.amount)),
+                    })}
                   </p>
                   <p className="mt-1 text-xs opacity-90">
-                    {testResult.matchedRuleId
-                      ? `命中规则「${rules.find((r) => r.id === testResult.matchedRuleId)?.name ?? ''}」`
-                      : '使用内置规则'}
-                    {testResult.category && ` · 归类到 ${testResult.category}`}
-                    {testResult.counterparty && ` · 对方 ${testResult.counterparty}`}
+                    {[
+                      testResult.matchedRuleId
+                        ? t('settingsRules.captureRule.testRuleHit', {
+                            name: rules.find((r) => r.id === testResult.matchedRuleId)?.name ?? '',
+                          })
+                        : t('settingsRules.captureRule.testBuiltin'),
+                      testResult.category &&
+                        t('settingsRules.captureRule.testCategory', {
+                          category: categoryLabel(locale, testResult.category),
+                        }),
+                      testResult.counterparty &&
+                        t('settingsRules.captureRule.testCounterparty', {
+                          counterparty: testResult.counterparty,
+                        }),
+                    ]
+                      .filter(Boolean)
+                      .join(separator)}
                   </p>
                 </>
               ) : (
-                <p>这条消息不会被记账</p>
+                <p>{t('settingsRules.captureRule.testNoMatch')}</p>
               )}
             </div>
           )}
@@ -462,7 +508,7 @@ export default function CaptureRuleEditor() {
       {/* 全局忽略 */}
       <details className="group rounded-xl border border-line bg-surface">
         <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-medium text-ink [&::-webkit-details-marker]:hidden">
-          全局忽略
+          {t('settingsRules.captureRule.globalIgnore')}
           <ChevronDown
             size={15}
             className="text-ink-subtle transition-transform group-open:rotate-180"
@@ -473,7 +519,7 @@ export default function CaptureRuleEditor() {
         <div className="space-y-3 border-t border-line p-3">
           <div>
             <label htmlFor="cr-ignore-pkg" className="mb-1 block text-xs font-medium text-ink">
-              忽略这些来源 App（包名，逗号分隔）
+              {t('settingsRules.captureRule.ignorePackages')}
             </label>
             <input
               id="cr-ignore-pkg"
@@ -484,13 +530,13 @@ export default function CaptureRuleEditor() {
               value={ignorePackagesText}
               onChange={(e) => setIgnorePackagesText(e.target.value)}
               onBlur={saveIgnoreSettings}
-              placeholder="如：com.tencent.qqmusic"
+              placeholder={t('settingsRules.captureRule.ignorePackagesPlaceholder')}
               className={cn(INPUT_CLASS, 'font-mono text-xs')}
             />
           </div>
           <div>
             <label htmlFor="cr-ignore-kw" className="mb-1 block text-xs font-medium text-ink">
-              忽略含这些词的消息
+              {t('settingsRules.captureRule.ignoreKeywords')}
             </label>
             <input
               id="cr-ignore-kw"
@@ -500,12 +546,12 @@ export default function CaptureRuleEditor() {
               value={ignoreKeywordsText}
               onChange={(e) => setIgnoreKeywordsText(e.target.value)}
               onBlur={saveIgnoreSettings}
-              placeholder="如：会员续费、积分提醒"
+              placeholder={t('settingsRules.captureRule.ignoreKeywordsPlaceholder')}
               className={INPUT_CLASS}
             />
           </div>
           <p className="text-[11px] text-ink-subtle">
-            「待支付」「未支付」「应缴」这类提醒词已内置屏蔽，不用重复填
+            {t('settingsRules.captureRule.ignoreNote')}
           </p>
         </div>
       </details>
@@ -514,7 +560,9 @@ export default function CaptureRuleEditor() {
       {testResult?.category && (
         <p className="flex items-center gap-1.5 text-xs text-ink-subtle">
           <CategoryIcon category={testResult.category} size={12} />
-          测试结果会直接归到「{testResult.category}」
+          {t('settingsRules.captureRule.testCategoryResult', {
+            category: categoryLabel(locale, testResult.category),
+          })}
         </p>
       )}
     </div>
