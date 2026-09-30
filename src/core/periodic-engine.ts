@@ -19,89 +19,86 @@ const AMOUNT_TOLERANCE = 1;
 
 /**
  * 自动检测周期性交易
- * 算法：按 counterparty+amount 分组 → 统计出现月数 → ≥3月则标记
+ * 算法：按 counterparty 分桶 → 桶内按 amount±1 分组 → 统计出现月数 → ≥3月则标记
  * 返回检测到的周期性交易列表
+ *
+ * 分桶是为了性能：原来每笔交易都要线性扫全部已有分组，
+ * 交易上万条时是 O(n×分组数)，现在同商户内匹配即可（期望 O(n)）。
  */
 export function detectPeriodicTransactions(
   transactions: Transaction[],
 ): PeriodicTransaction[] {
-  // 1. 筛选支出交易（周期性通常为支出）
-  const expenses = transactions.filter((t) => t.amount > 0);
+  // 1+2. 按 counterparty 分桶，桶内再按金额容差分组
+  const byCounterparty = new Map<string, { key: GroupKey; txns: Transaction[] }[]>();
 
-  // 2. 按 counterparty + amount 分组
-  const groupMap = new Map<string, { txns: Transaction[]; key: GroupKey }>();
+  for (const txn of transactions) {
+    // 周期性通常为支出
+    if (txn.amount <= 0) continue;
 
-  for (const txn of expenses) {
-    const key: GroupKey = {
-      counterparty: txn.counterparty,
-      amount: txn.amount,
-    };
-    // 使用容差匹配金额
-    const groupKey = findOrCreateGroup(groupMap, key);
-    groupMap.get(groupKey)!.txns.push(txn);
+    const buckets = byCounterparty.get(txn.counterparty) ?? [];
+    let bucket = buckets.find(
+      (item) => Math.abs(item.key.amount - txn.amount) <= AMOUNT_TOLERANCE,
+    );
+    if (!bucket) {
+      bucket = { key: { counterparty: txn.counterparty, amount: txn.amount }, txns: [] };
+      buckets.push(bucket);
+      byCounterparty.set(txn.counterparty, buckets);
+    }
+    bucket.txns.push(txn);
   }
 
   // 3. 筛选出现≥3个月的分组
   const results: PeriodicTransaction[] = [];
 
-  for (const [, group] of groupMap) {
-    const months = new Set(group.txns.map((t) => getMonthKey(t.transactionTime)));
+  for (const buckets of byCounterparty.values()) {
+    for (const group of buckets) {
+      const months = new Set(group.txns.map((t) => getMonthKey(t.transactionTime)));
 
-    if (months.size < MIN_MONTHS) continue;
+      if (months.size < MIN_MONTHS) continue;
 
-    // 4. 推断周期
-    const period = inferPeriod(months);
+      // 4. 推断周期
+      const period = inferPeriod(months);
 
-    // 5. 计算置信度
-    const confidence = calcConfidence(months.size, group.txns.length, period);
+      // 5. 计算置信度
+      const confidence = calcConfidence(months.size, group.txns.length, period);
 
-    // 6. 计算下次预计日期
-    const lastDate = getLastDate(group.txns);
-    const nextDate = predictNextDate(lastDate, period);
+      // 6. 计算下次预计日期
+      const lastDate = getLastDate(group.txns);
+      const nextDate = predictNextDate(lastDate, period);
 
-    // 取最常见的分类
-    const category = getMostCommonCategory(group.txns);
+      // 取最常见的分类
+      const category = getMostCommonCategory(group.txns);
 
-    results.push({
-      counterparty: group.key.counterparty,
-      amount: group.key.amount,
-      category,
-      period,
-      lastDate,
-      nextDate,
-      confidence,
-    });
+      results.push({
+        counterparty: group.key.counterparty,
+        amount: group.key.amount,
+        category,
+        period,
+        lastDate,
+        nextDate,
+        confidence,
+      });
+    }
   }
 
   // 按置信度降序排列
   return results.sort((a, b) => b.confidence - a.confidence);
 }
 
+/** 上一次计算的输入数组与结果：store 每次变更都会换新数组，据此判断是否需要重算 */
+let periodicCacheKey: Transaction[] | null = null;
+let periodicCacheValue: PeriodicTransaction[] = [];
+
 /**
- * 查找或创建分组（带金额容差匹配）
+ * 带缓存的周期检测。
+ * 看板渲染与 store 的自动标记会各自调用一次，同一份数据不必算两遍。
  */
-function findOrCreateGroup(
-  groupMap: Map<string, { txns: Transaction[]; key: GroupKey }>,
-  key: GroupKey,
-): string {
-  // 先精确匹配
-  const exactKey = `${key.counterparty}::${key.amount}`;
-  if (groupMap.has(exactKey)) return exactKey;
-
-  // 容差匹配：查找金额差在TOLERANCE内的已有分组
-  for (const [existingKey, group] of groupMap) {
-    if (
-      group.key.counterparty === key.counterparty &&
-      Math.abs(group.key.amount - key.amount) <= AMOUNT_TOLERANCE
-    ) {
-      return existingKey;
-    }
+export function getPeriodicTransactions(transactions: Transaction[]): PeriodicTransaction[] {
+  if (periodicCacheKey !== transactions) {
+    periodicCacheValue = detectPeriodicTransactions(transactions);
+    periodicCacheKey = transactions;
   }
-
-  // 新建分组
-  const newKey = `${key.counterparty}::${key.amount}`;
-  groupMap.set(newKey, { txns: [], key });
-  return newKey;
+  return periodicCacheValue;
 }
 
 /**
@@ -248,26 +245,35 @@ export function calcPeriodicBreakdown(
 /**
  * 批量标记周期性交易
  * 遍历交易列表，将检测到的周期性交易标记 isPeriodic=true
- * 返回新标记的交易ID列表
+ * 返回需要新标记的交易 ID（已去重）
+ *
+ * 同样按 counterparty 建索引，避免"每条周期记录 × 全部交易"的双重循环。
  */
 export function markPeriodicTransactions(
   transactions: Transaction[],
   periodicList: PeriodicTransaction[],
 ): string[] {
-  const newlyMarked: string[] = [];
+  if (periodicList.length === 0) return [];
 
+  const candidatesByCounterparty = new Map<string, Transaction[]>();
+  for (const txn of transactions) {
+    if (txn.isPeriodic || txn.amount <= 0) continue;
+    const list = candidatesByCounterparty.get(txn.counterparty);
+    if (list) {
+      list.push(txn);
+    } else {
+      candidatesByCounterparty.set(txn.counterparty, [txn]);
+    }
+  }
+
+  const marked = new Set<string>();
   for (const periodic of periodicList) {
-    for (const txn of transactions) {
-      if (
-        !txn.isPeriodic &&
-        txn.amount > 0 &&
-        txn.counterparty === periodic.counterparty &&
-        Math.abs(txn.amount - periodic.amount) <= AMOUNT_TOLERANCE
-      ) {
-        newlyMarked.push(txn.id);
+    for (const txn of candidatesByCounterparty.get(periodic.counterparty) ?? []) {
+      if (Math.abs(txn.amount - periodic.amount) <= AMOUNT_TOLERANCE) {
+        marked.add(txn.id);
       }
     }
   }
 
-  return newlyMarked;
+  return [...marked];
 }

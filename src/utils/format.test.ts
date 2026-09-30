@@ -85,6 +85,16 @@ describe('formatDateShort', () => {
     expect(formatDateShort('2026-07-05 14:30:00')).toBe('7月5日 14:30')
   })
 
+  // iOS Safari / 旧 WebKit 对 "yyyy-MM-dd HH:mm:ss" 这种带空格的格式解析不可靠，
+  // 所以这里不走 new Date()，而是自己拆字符串
+  it('不依赖 Date 解析，纯字符串也能格式化', () => {
+    expect(formatDateShort('2026-01-09 08:05:00')).toBe('1月9日 08:05')
+  })
+
+  it('只有日期没有时间时按 0 点处理', () => {
+    expect(formatDateShort('2026-01-09')).toBe('1月9日 00:00')
+  })
+
   it('无效日期原样返回', () => {
     expect(formatDateShort('invalid')).toBe('invalid')
   })

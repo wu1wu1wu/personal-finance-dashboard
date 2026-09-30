@@ -76,9 +76,9 @@ export default function CategoryRuleEditor() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-medium text-ink-muted">
+        <p className="text-sm font-medium text-ink-muted">
           命中自定义规则的关键词优先按你的设定分类
-        </h3>
+        </p>
         {!showForm && (
           <button
             type="button"
@@ -182,7 +182,7 @@ export default function CategoryRuleEditor() {
                     type="button"
                     onClick={() => handleEdit(rule)}
                     aria-label={`修改规则 ${rule.keywords.join('、')}`}
-                    className="rounded-md p-1.5 text-ink-subtle transition-colors hover:bg-canvas hover:text-brand"
+                    className="flex h-11 w-11 items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-canvas hover:text-brand"
                   >
                     <Pencil size={14} aria-hidden="true" />
                   </button>
@@ -190,7 +190,7 @@ export default function CategoryRuleEditor() {
                     type="button"
                     onClick={() => deleteCustomRule(rule.id)}
                     aria-label={`删除规则 ${rule.keywords.join('、')}`}
-                    className="rounded-md p-1.5 text-ink-subtle transition-colors hover:bg-expense-soft hover:text-expense"
+                    className="flex h-11 w-11 items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-expense-soft hover:text-expense"
                   >
                     <Trash size={14} aria-hidden="true" />
                   </button>

@@ -9,7 +9,7 @@ import { storage } from '@/storage/StorageAdapter';
 import { queuePersist } from '@/storage/persist-queue';
 import { coverKey, hydrateCovers, migrateInlineCovers, saveCover, stripCovers } from '@/storage/cover-store';
 import { classifyTransaction } from '@/core/classifier';
-import { detectPeriodicTransactions, markPeriodicTransactions } from '@/core/periodic-engine';
+import { getPeriodicTransactions, markPeriodicTransactions } from '@/core/periodic-engine';
 
 interface TransactionStore {
   /** 所有交易记录 */
@@ -362,7 +362,7 @@ export const useTransactionStore = create<TransactionStore>((set, get) => ({
   autoMarkPeriodic: () => {
     const { transactions } = get();
     if (transactions.length === 0) return;
-    const periodicList = detectPeriodicTransactions(transactions);
+    const periodicList = getPeriodicTransactions(transactions);
     const newlyMarked = markPeriodicTransactions(transactions, periodicList);
     if (newlyMarked.length === 0) return;
     const idSet = new Set(newlyMarked);

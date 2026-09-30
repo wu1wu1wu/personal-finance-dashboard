@@ -3,7 +3,6 @@
 // ============================================================
 
 import Papa from 'papaparse';
-import * as XLSX from 'xlsx';
 import type { Transaction } from '@/types';
 import { generateTransactionId } from '@/utils/id';
 import { normalizeDateTime } from '@/utils/date';
@@ -174,6 +173,10 @@ async function parseWechatXLSX(
   let duplicateCount = 0;
 
   try {
+    // xlsx 有 861KB，只有真的导入 Excel 账单时才需要。
+    // 用动态 import 让它独立成 chunk：CSV 用户和首屏永远不用下载它。
+    const XLSX = await import('xlsx');
+
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(buffer, { type: 'array' });
 

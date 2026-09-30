@@ -15,7 +15,7 @@ import {
   calcDailySpend,
 } from '@/core/dashboard-engine';
 import {
-  detectPeriodicTransactions,
+  getPeriodicTransactions,
   calcPeriodicBreakdown,
 } from '@/core/periodic-engine';
 import { getCurrentMonth, buildMonthOptions } from '@/utils/date';
@@ -99,7 +99,7 @@ export default function Dashboard() {
     () => calcDailySpend(transactions, selectedMonth),
     [transactions, selectedMonth],
   );
-  const periodicData = useMemo(() => detectPeriodicTransactions(transactions), [transactions]);
+  const periodicData = useMemo(() => getPeriodicTransactions(transactions), [transactions]);
   const periodicBreakdown = useMemo(
     () => calcPeriodicBreakdown(transactions, selectedMonth),
     [transactions, selectedMonth],
@@ -149,7 +149,7 @@ export default function Dashboard() {
                 onClick={() => setViewMode(opt.value)}
                 aria-pressed={active}
                 className={cn(
-                  'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+                  'flex min-h-11 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors',
                   active ? 'bg-surface text-ink shadow-sm' : 'text-ink-muted hover:text-ink',
                 )}
               >
@@ -180,7 +180,7 @@ export default function Dashboard() {
                   aria-pressed={active}
                   aria-label={`${m.replace('-', '年')}月`}
                   className={cn(
-                    'tnum shrink-0 rounded-lg px-3 py-1.5 text-sm transition-colors',
+                    'tnum flex min-h-11 shrink-0 items-center rounded-lg px-3 text-sm transition-colors',
                     active
                       ? 'bg-brand font-medium text-white'
                       : 'bg-surface text-ink-muted hover:text-ink',
@@ -200,7 +200,7 @@ export default function Dashboard() {
         <div className="rounded-2xl border border-line bg-surface py-16 text-center">
           <p className="text-base font-medium text-ink">还没有记账记录</p>
           <p className="mt-1 text-sm text-ink-subtle">
-            点右下角加号手动记一笔，或到「设置」导入微信账单
+            点底部（桌面端在右上角）的「记一笔」，或到「设置」导入微信账单
           </p>
         </div>
       )}

@@ -4,8 +4,14 @@
 // 图例用 HTML 渲染而不是 ECharts legend，窄屏不会压字。
 // ============================================================
 
-import ReactECharts from 'echarts-for-react';
+import { useMemo } from 'react';
 import { ChartPie } from 'lucide-react';
+import EChart from '@/components/charts/EChart';
+import {
+  buildPeriodicBreakdownOption,
+  summarizePeriodicBreakdown,
+} from '@/components/dashboard/chart-options';
+import { CHART_COLORS } from '@/constants/chart-colors';
 import type { PeriodicBreakdown } from '@/core/periodic-engine';
 import { formatCurrency } from '@/utils/format';
 
@@ -13,11 +19,13 @@ interface PeriodicBreakdownChartProps {
   data: PeriodicBreakdown;
 }
 
-const FIXED_COLOR = '#6366F1';
-const FLEXIBLE_COLOR = '#F59E0B';
+const FIXED_COLOR = CHART_COLORS.fixed;
+const FLEXIBLE_COLOR = CHART_COLORS.flexible;
 
 export default function PeriodicBreakdownChart({ data }: PeriodicBreakdownChartProps) {
   const total = data.fixedAmount + data.flexibleAmount;
+  const option = useMemo(() => buildPeriodicBreakdownOption(data), [data]);
+  const summary = useMemo(() => summarizePeriodicBreakdown(data), [data]);
 
   const heading = (
     <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-ink">
@@ -37,32 +45,6 @@ export default function PeriodicBreakdownChart({ data }: PeriodicBreakdownChartP
 
   const fixedPercent = Math.round((data.fixedAmount / total) * 1000) / 10;
   const flexiblePercent = Math.round((data.flexibleAmount / total) * 1000) / 10;
-
-  const option = {
-    tooltip: {
-      trigger: 'item' as const,
-      formatter: (params: { name: string; value: number; percent: number }) =>
-        `<div style="font-weight:600">${params.name}</div>
-         <div>金额: ${formatCurrency(params.value)}</div>
-         <div>占比: ${params.percent}%</div>`,
-    },
-    series: [
-      {
-        type: 'pie' as const,
-        radius: ['58%', '86%'],
-        center: ['50%', '50%'],
-        padAngle: 2,
-        itemStyle: { borderRadius: 3, borderColor: '#fff', borderWidth: 2 },
-        label: { show: false },
-        labelLine: { show: false },
-        emphasis: { scaleSize: 4 },
-        data: [
-          { name: '固定开销', value: data.fixedAmount, itemStyle: { color: FIXED_COLOR } },
-          { name: '弹性开销', value: data.flexibleAmount, itemStyle: { color: FLEXIBLE_COLOR } },
-        ],
-      },
-    ],
-  };
 
   const legend = [
     {
@@ -86,12 +68,12 @@ export default function PeriodicBreakdownChart({ data }: PeriodicBreakdownChartP
       {heading}
 
       <div className="flex items-center gap-4">
-        <div className="relative h-[132px] w-[132px] shrink-0">
-          <ReactECharts
-            option={option}
-            style={{ height: 132, width: 132 }}
-            opts={{ renderer: 'svg' }}
-          />
+        <div
+          className="relative h-[132px] w-[132px] shrink-0"
+          role="img"
+          aria-label={summary}
+        >
+          <EChart option={option} style={{ height: 132, width: 132 }} />
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
             <span className="text-[11px] text-ink-subtle">合计</span>
             <span className="tnum text-xs font-semibold text-ink">

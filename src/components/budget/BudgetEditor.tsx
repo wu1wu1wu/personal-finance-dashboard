@@ -101,10 +101,10 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
     <div className="space-y-5">
       {/* 总月度预算 */}
       <section className="rounded-xl bg-canvas p-4">
-        <h4 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-ink">
+        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-ink">
           <Wallet size={15} className="text-ink-subtle" aria-hidden="true" />
           总月度预算
-        </h4>
+        </h2>
 
         {currentTotal > 0 && !totalInput ? (
           <div className="flex flex-wrap items-center gap-3">
@@ -170,15 +170,15 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
       {/* 分类预算 */}
       <section>
         <div className="mb-3 flex items-center justify-between gap-3">
-          <h4 className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ink">
             <ChartPie size={15} className="text-ink-subtle" aria-hidden="true" />
             {month} 分类预算
-          </h4>
+          </h2>
           {!showAdd && availableCategories.length > 0 && (
             <button
               type="button"
               onClick={() => setShowAdd(true)}
-              className="flex items-center gap-1 rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-brand/90"
+              className="flex min-h-11 items-center gap-1 rounded-lg bg-brand px-3 text-xs font-medium text-white transition-colors hover:bg-brand/90"
             >
               <Plus size={13} aria-hidden="true" />
               添加分类预算
@@ -380,7 +380,7 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
                             )
                           }
                           aria-label={`修改 ${budget.category} 预算`}
-                          className="rounded-md p-1.5 text-ink-subtle transition-colors hover:bg-canvas hover:text-brand"
+                          className="flex h-11 w-11 items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-canvas hover:text-brand"
                         >
                           <Pencil size={14} aria-hidden="true" />
                         </button>
@@ -388,7 +388,7 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
                           type="button"
                           onClick={() => removeBudget(budget.category, month)}
                           aria-label={`删除 ${budget.category} 预算`}
-                          className="rounded-md p-1.5 text-ink-subtle transition-colors hover:bg-expense-soft hover:text-expense"
+                          className="flex h-11 w-11 items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-expense-soft hover:text-expense"
                         >
                           <Trash size={14} aria-hidden="true" />
                         </button>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -7,19 +7,23 @@ import {
   Wallet,
   Settings as SettingsIcon,
 } from 'lucide-react';
-import Dashboard from '@/pages/Dashboard';
-import Transactions from '@/pages/Transactions';
-import Budget from '@/pages/Budget';
-import Settings from '@/pages/Settings';
-import SettingsAbout from '@/pages/SettingsAbout';
-import SettingsAutoLedger from '@/pages/SettingsAutoLedger';
-import SettingsCategories from '@/pages/SettingsCategories';
-import SettingsData from '@/pages/SettingsData';
-import SettingsImport from '@/pages/SettingsImport';
-import Cleanup from '@/pages/Cleanup';
 import AddTransactionModal from '@/components/transactions/AddTransactionModal';
+import PageFallback from '@/components/ui/PageFallback';
 import PersistAlert from '@/components/ui/PersistAlert';
 import { useAutoLedger } from '@/hooks/useAutoLedger';
+
+// 页面按路由懒加载：图表（echarts）和 Excel 解析（xlsx）都不会进首屏 chunk，
+// 设置、明细、预算这些页也不用为此付下载与解析的代价。
+const Dashboard = lazy(() => import('@/pages/Dashboard'));
+const Transactions = lazy(() => import('@/pages/Transactions'));
+const Budget = lazy(() => import('@/pages/Budget'));
+const Settings = lazy(() => import('@/pages/Settings'));
+const SettingsAbout = lazy(() => import('@/pages/SettingsAbout'));
+const SettingsAutoLedger = lazy(() => import('@/pages/SettingsAutoLedger'));
+const SettingsCategories = lazy(() => import('@/pages/SettingsCategories'));
+const SettingsData = lazy(() => import('@/pages/SettingsData'));
+const SettingsImport = lazy(() => import('@/pages/SettingsImport'));
+const Cleanup = lazy(() => import('@/pages/Cleanup'));
 
 const navItems = [
   { to: '/', label: '看板', icon: LayoutDashboard },
@@ -55,7 +59,7 @@ export default function App() {
                 to={item.to}
                 end={item.to === '/'}
                 className={({ isActive }) =>
-                  `flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                  `flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors ${
                     isActive
                       ? 'bg-brand-soft text-brand'
                       : 'text-ink-muted hover:bg-canvas hover:text-ink'
@@ -70,7 +74,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setShowAddModal(true)}
-              className="ml-auto flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-brand/90"
+              className="ml-auto flex min-h-11 items-center gap-1.5 rounded-lg bg-brand px-3 text-sm font-medium text-white transition-colors hover:bg-brand/90"
             >
               <Plus size={16} aria-hidden="true" />
               记一笔
@@ -80,20 +84,22 @@ export default function App() {
 
         {/* 页面内容 */}
         <main id="main" className="mx-auto max-w-5xl px-4 pb-28 pt-4 md:pb-10">
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/transactions" element={<Transactions />} />
-            <Route path="/budget" element={<Budget />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/settings/import" element={<SettingsImport />} />
-            <Route path="/settings/auto-ledger" element={<SettingsAutoLedger />} />
-            <Route path="/settings/categories" element={<SettingsCategories />} />
-            <Route path="/settings/data" element={<SettingsData />} />
-            <Route path="/settings/about" element={<SettingsAbout />} />
-            <Route path="/cleanup" element={<Cleanup />} />
-            {/* 未知路径回看板，别留给用户一片空白 */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+          <Suspense fallback={<PageFallback />}>
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/transactions" element={<Transactions />} />
+              <Route path="/budget" element={<Budget />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/settings/import" element={<SettingsImport />} />
+              <Route path="/settings/auto-ledger" element={<SettingsAutoLedger />} />
+              <Route path="/settings/categories" element={<SettingsCategories />} />
+              <Route path="/settings/data" element={<SettingsData />} />
+              <Route path="/settings/about" element={<SettingsAbout />} />
+              <Route path="/cleanup" element={<Cleanup />} />
+              {/* 未知路径回看板，别留给用户一片空白 */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
         </main>
 
         {/* 底部导航（移动端） */}

@@ -146,9 +146,9 @@ export default function CaptureRuleEditor() {
     <div className="space-y-4">
       {/* 规则列表 */}
       <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm text-ink-muted">
+        <p className="text-sm text-ink-muted">
           内置规则覆盖不到的银行或 App，可以自己加一条
-        </h3>
+        </p>
         {!showForm && (
           <button
             type="button"
@@ -208,7 +208,7 @@ export default function CaptureRuleEditor() {
                   type="button"
                   onClick={() => openEdit(rule)}
                   aria-label={`修改规则 ${rule.name}`}
-                  className="rounded-md p-1.5 text-ink-subtle transition-colors hover:bg-canvas hover:text-brand"
+                  className="flex h-11 w-11 items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-canvas hover:text-brand"
                 >
                   <Pencil size={14} aria-hidden="true" />
                 </button>
@@ -216,7 +216,7 @@ export default function CaptureRuleEditor() {
                   type="button"
                   onClick={() => removeRule(rule.id)}
                   aria-label={`删除规则 ${rule.name}`}
-                  className="rounded-md p-1.5 text-ink-subtle transition-colors hover:bg-expense-soft hover:text-expense"
+                  className="flex h-11 w-11 items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-expense-soft hover:text-expense"
                 >
                   <Trash size={14} aria-hidden="true" />
                 </button>

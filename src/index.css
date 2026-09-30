@@ -3,13 +3,17 @@
 /*
  * 记账场景里只有三种颜色带信息量：支出（红）、收入（绿）、主色（蓝）。
  * 其余一律走中性灰阶，避免界面上出现互相抢注意力的装饰色。
+ *
+ * 这几个值都按 WCAG AA 校过（正文 ≥4.5:1，白底与 canvas 底都要满足），
+ * 由 src/utils/contrast.test.ts 与 src/constants/chart-colors.test.ts 守住：
+ * 改浅了测试会失败。图表用的是 chart-colors.ts 里的同值副本。
  */
 @theme {
   --color-brand: #2563eb;
   --color-brand-soft: #eef4ff;
-  --color-expense: #e5484d;
+  --color-expense: #c92a2e;
   --color-expense-soft: #fef3f3;
-  --color-income: #0f9d58;
+  --color-income: #0b7a44;
   --color-income-soft: #f0faf4;
   --color-alert: #b45309;
   --color-alert-soft: #fffbeb;
@@ -18,8 +22,8 @@
   --color-surface: #ffffff;
   --color-line: #e8ebf0;
   --color-ink: #14181f;
-  --color-ink-muted: #667085;
-  --color-ink-subtle: #98a1ae;
+  --color-ink-muted: #5b6675;
+  --color-ink-subtle: #6b7280;
 }
 
 @layer base {

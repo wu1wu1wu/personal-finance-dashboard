@@ -51,7 +51,7 @@
 | 图表 | ECharts 6 |
 | 路由 | react-router-dom v7 |
 | 账单解析 | papaparse + xlsx |
-| 测试 | Vitest 4（233 个单测） |
+| 测试 | Vitest 4（276 个单测） |
 | 代码检查 | oxlint |
 | 移动端 | Capacitor 8 + @capacitor/preferences |
 
@@ -145,30 +145,41 @@ cd android && ./gradlew assembleDebug    # Windows Git Bash 用 sh gradlew
 
 仓库构建出的 APK 使用自动生成的调试签名，仅供自己安装使用。若要上架应用商店，需要另外配置正式签名。
 
-### 9. 首屏加载偏重
+### 9. 首屏体积
 
-ECharts 与 xlsx 打包在同一个 chunk 里，产物约 1.8 MB（gzip 后约 600 KB）。功能不受影响，但在低端手机上首次打开会稍慢。
+页面按路由懒加载、ECharts 按需注册、xlsx 改为动态导入后，首屏（入口 + 看板）约 **977 KB（gzip 后约 326 KB）**，明细/预算/设置等页面不再加载图表代码，Excel 解析（425 KB）只在真的导入 `.xlsx` 时才下载。
+
+> 改造前是单个 2.03 MB 的 chunk（gzip 约 666 KB），任何页面都要先下完 ECharts 和 xlsx。
+
+## 无障碍与配色约定
+
+- 颜色令牌（`src/index.css` 的 `@theme`）必须满足 WCAG AA：正文 ≥4.5:1，白底与 canvas 底都要满足；由 `src/utils/contrast.test.ts` 与 `src/constants/chart-colors.test.ts` 守住，改浅了测试会失败。
+- 图表配色单独放在 `src/constants/chart-colors.ts`（ECharts 读不到 CSS 变量），两处必须同值，测试会核对。
+- 触控目标：仅图标按钮 ≥44×44 px；密集列表里的文字 chip ≥32 px 且相邻间距 ≥8 px（WCAG 2.2 目标尺寸的间距例外）。
+- 图表都带 `role="img"` + 文字摘要；分类环形图的数据由旁边的 HTML 列表承载，图表本身对读屏软件隐藏。
 
 ## 项目结构
 
 ```
 src/
   core/          # 纯逻辑引擎（无 React 依赖）
-                 #   csv-parser        账单解析
+                 #   csv-parser        账单解析（xlsx 按需加载）
                  #   classifier        关键词分类 + 反馈学习
                  #   habit-learner     习惯学习（金额 + 时段 → 分类）
                  #   transaction-reconcile  账单回填 + 重复导入保护
                  #   transaction-query 筛选 / 排序 / 汇总
+                 #   transaction-filters 筛选条件 ↔ URL 参数
                  #   backup            备份校验 / 恢复回滚 / 快照
                  #   dashboard-engine  看板统计
                  #   budget-engine     预算执行
-                 #   periodic-engine   周期性交易识别
+                 #   periodic-engine   周期性交易识别（按商户索引 + 引用缓存）
                  #   data-masker       数据脱敏
   stores/        # Zustand 状态管理（交易 / 分类规则 / 预算 / 读取规则 / 设置）
   components/    # 展示组件，按功能分组
-  pages/         # 顶层路由页面
+                 #   charts/           ECharts 按需注册与统一封装
+  pages/         # 顶层路由页面（全部按路由懒加载）
   types/         # 类型定义与常量
-  utils/         # 日期、格式化、ID 生成、文件下载等工具
+  utils/         # 日期、格式化、ID 生成、文件下载、对比度等工具
   storage/       # 存储抽象层 + 持久化队列 + 封面图独立存储
   hooks/         # 自动记账 Hook
   plugins/       # Capacitor 原生插件封装
@@ -190,4 +201,4 @@ docs/            # 设计文档
 - 应用的系统云备份已关闭（`allowBackup=false`）：交易库和短信/通知原文不会随云备份或换机迁移离开设备，跨设备请用「导出备份」
 - 短信通道只申请 `RECEIVE_SMS`，不读取历史短信
 - **账单主题功能尚未完成**：当前只支持给单笔交易填写文字主题或配置封面图；完整主题商店、皮肤切换、按主题批量管理等能力仍在规划中
-- 性能与无障碍的改进项（首屏拆包、周期检测复杂度、触控目标尺寸、深色模式）见 `docs/plan-hardening.md` 的范围外说明，留待下一批
+- 深色模式、列表虚拟化、PWA 离线安装、删除撤销（回收站）尚未实现

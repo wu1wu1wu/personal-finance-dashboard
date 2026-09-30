@@ -42,8 +42,9 @@ export default function CategoryTag({
 
   const catInfo = CATEGORIES.find((c) => c.name === category) ?? CATEGORIES[CATEGORIES.length - 1];
 
+  // min-h-8：行内的文字 chip 按「密集列表」规则给到 32px（WCAG 2.2 目标尺寸的间距例外）
   const tagClass =
-    'inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium';
+    'inline-flex min-h-8 items-center gap-1 whitespace-nowrap rounded-full px-2 text-xs font-medium';
   const tagStyle = { backgroundColor: `${catInfo.color}18`, color: catInfo.color };
 
   const tagContent = (

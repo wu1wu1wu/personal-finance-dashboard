@@ -2,7 +2,7 @@
 
 > 状态：**已实施**（A′ / A″ / B 三组全部落地，单测 162 → 233 全绿，`npm run build` 通过）
 > 来源：2026-09 全量代码审查（数据层与 core 引擎 / 自动记账原生链路 / UI 与性能 三路只读审查 + 逐条复核）
-> 范围：A′ 账目正确性、A″ 数据与隐私安全、B 刚需体验。性能类（周期检测复杂度、bundle 拆包、触控目标、对比度）与筛选状态进 URL 留待下一批。
+> 范围：A′ 账目正确性、A″ 数据与隐私安全、B 刚需体验。性能类（周期检测复杂度、bundle 拆包、触控目标、对比度）与筛选状态进 URL 留待下一批（见文末「第三批」）。
 >
 > 实施中的两处调整：
 > 1. A″6 的「脱敏开关」选择了落地真实设置（`settings-store` + `pfd_settings`），而不是删除死类型。
@@ -163,3 +163,50 @@ amount: isIncome ? -amount : amount,
 - 微信账单「收/支」与「交易类型」的完整取值集合（影响 A′4-2 / A′4-3 的边界）。
 - Capacitor WebView 上 `a.download` + blob 的落盘能力（影响 A″4 导出在真机的表现）。
 - `requestRebind`、厂商自启动页跳转在国产 ROM 上的实际效果（不在本批范围）。
+
+---
+
+# 第三批：性能与无障碍
+
+> 状态：**已实施**（单测 233 → 276 全绿，`tsc -b` 无错，`oxlint` 0 警告，`vite build` 通过）
+
+## P1 打包与首屏体积
+
+| 项 | 做法 | 实测 |
+|---|---|---|
+| xlsx 按需加载 | `csv-parser.ts` 里 `parseWechatXLSX` 内部 `await import('xlsx')`，顶层静态 import 删除 | xlsx 独立成 chunk 424.71 KB / gzip 141.48；**入口 chunk 不再包含 xlsx**（用产物字符串核验） |
+| 路由懒加载 | `App.tsx` 全部页面 `lazy()` + `<Suspense fallback={<PageFallback/>}>`，新增 `components/ui/PageFallback.tsx` | 明细 79 KB、预算 18 KB、设置各 3-31 KB，各自独立 chunk |
+| echarts 按需注册 | 新增 `components/charts/register.ts`（`echarts/core` + Pie/Line/Bar + Tooltip/Legend/Grid/**MarkLine** + SVGRenderer）与 `components/charts/EChart.tsx`（`echarts-for-react/lib/core`）；option 构造抽成 `components/dashboard/chart-options.ts` 纯函数 | Dashboard chunk 1160.82 → **628.64 KB**（gzip 384 → 212） |
+| 验收数字 | 入口 ≤700 KB / 首屏（入口+看板） | 入口 **348.72 KB**（gzip 114.37）；首屏合计 **977 KB**（gzip 326），改造前为 2034 KB / 666 KB |
+
+**与计划的偏差**：echarts 没有单独成 vendor chunk，而是并入了 Dashboard 路由 chunk（只有看板用图表）。效果等同——明细/预算/设置页完全不加载图表代码——且少一次请求，故保留现状。
+
+## P2 计算与渲染热点
+
+- `detectPeriodicTransactions` 改为按 `counterparty` 分桶后桶内匹配（原实现是每笔交易线性扫全部分组，O(n×分组数)）；`markPeriodicTransactions` 同法索引化并去重 id；新增 `getPeriodicTransactions()` 按数组引用缓存，看板与 store 自动标记共用一次计算。
+- 明细页：行抽成 `memo` 的 `TransactionListItem`（props 全为原始值 + `useCallback` 稳定回调），`useDeferredValue(keyword)`，行加 `content-visibility:auto`。
+- `utils/format.ts` 复用模块级 `Intl.NumberFormat`；`formatDateShort` 改手写解析（不再依赖 `new Date("yyyy-MM-dd HH:mm:ss")`，规避 iOS WebKit 解析失败）。
+
+## P3 无障碍与视觉
+
+- 颜色令牌压深到 WCAG AA：`ink-subtle #98a1ae→#6b7280`（2.61→4.83）、`ink-muted #667085→#5b6675`、`expense #e5484d→#c92a2e`（3.91→5.45）、`income #0f9d58→#0b7a44`（3.51→5.41）；图表轴标签/柱色/参考线同步（柱色 `#818CF8`→`#4F46E5`）。
+- 新增 `utils/contrast.ts` + `utils/contrast.test.ts` + `constants/chart-colors.test.ts`：令牌不达 AA、或图表色与 CSS 令牌不同值，测试直接失败。
+- 触控目标：仅图标按钮统一 ≥44×44（明细页删除/确认/取消、重新识别、批量归类、月份 chip、方向切换、视图切换、看板与预算的月份条、三个编辑器里的图标按钮、周期列表取消按钮、配图删除、桌面导航与「记一笔」）；行内分类 chip 提到 32 px；`PeriodicList` 的取消按钮从 hover-only 改为常驻（触屏上原本"看不见却能点到"）。
+- 图表文字替代：三张图 `role="img"` + 由 `summarizeTrend/summarizeDaily/summarizePeriodicBreakdown` 生成的摘要；分类环形图的图表部分 `aria-hidden`（右侧 HTML 列表已承载数据）。
+- 层级与细节：`BudgetEditor` 的 `h4`→`h2`（原来 h1 直接跳 h4），两个编辑器里当说明用的 `h3`→`p`；空状态文案不再说"右下角加号"；主题输入加 `maxLength`，主题卡片文字 `line-clamp-2`。
+
+## P4 筛选状态进 URL
+
+新增纯函数模块 `core/transaction-filters.ts`（`parseFilterParams` / `mergeFilterParams`）：明细页的月份、方向、排序、关键词、金额区间全部落到 URL（`replace`），关键词与金额输入保留本地 state、停 250 ms 写入；非法参数一律回落默认值。与既有深链 `?category=` / `?pending=1` / `?id=` 共用一套解析（收件箱模式与分类互斥）。
+
+## 第三批的验证
+
+1. 新增/改写单测 43 条（chart SSR 9、对比度 9、图表配色 3、URL 筛选 12、periodic 8、format/date 2 等），合计 **276 条全绿**。
+2. 图表用 ECharts SSR 在 node 里真渲染并断言关键内容（含日均参考线），同时断言渲染期间**没有任何 ECharts 告警**——按需注册漏组件会被这条抓住。顺带修掉了 echarts 6 已废弃的 `grid.containLabel`（改用 `outerBoundsMode/outerBoundsContain`）。
+3. `tsc -b`、`oxlint`（0 警告）、`vite build` 通过；产物字符串核验入口 chunk 既无 xlsx 也无 echarts。
+4. dev server 冒烟：入口 HTML 与 App/明细页/图表/筛选模块均 200 且无 transform 错误。
+
+## 第三批未做（明确排除）
+
+深色模式、列表虚拟化、PWA 离线、删除撤销（回收站）、月报、支付宝账单导入、i18n。
+

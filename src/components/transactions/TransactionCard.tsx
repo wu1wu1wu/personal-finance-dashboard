@@ -81,7 +81,8 @@ export default function TransactionCard({ txn, onClick, onClearTheme }: Transact
             <span className="min-w-0 flex-1">
               <span
                 className={cn(
-                  'block text-base font-medium',
+                  // 主题是用户随手写的，最长限制在 2 行，否则会把卡片撑高、压掉配图的渐变
+                  'line-clamp-2 block text-base font-medium',
                   hasImage ? 'text-white' : 'text-ink',
                 )}
               >
@@ -121,13 +122,21 @@ export default function TransactionCard({ txn, onClick, onClearTheme }: Transact
           onClick={onClearTheme}
           aria-label="移除主题"
           className={cn(
-            'absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full transition-colors',
+            // 视觉上仍是一个小圆钮，但点击区扩到 44px（伪元素不再需要，直接用内边距）
+            'absolute right-1 top-1 flex h-11 w-11 items-center justify-center rounded-full transition-colors',
             hasImage
-              ? 'bg-black/45 text-white hover:bg-expense'
-              : 'bg-canvas text-ink-subtle hover:bg-expense-soft hover:text-expense',
+              ? 'text-white hover:bg-expense'
+              : 'text-ink-subtle hover:bg-expense-soft hover:text-expense',
           )}
         >
-          <X size={13} aria-hidden="true" />
+          <span
+            className={cn(
+              'flex h-7 w-7 items-center justify-center rounded-full',
+              hasImage ? 'bg-black/45' : 'bg-canvas',
+            )}
+          >
+            <X size={13} aria-hidden="true" />
+          </span>
         </button>
       )}
     </li>

@@ -227,6 +227,7 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
               name="theme"
               type="text"
               autoComplete="off"
+              maxLength={40}
               value={themeInput}
               onChange={(e) => setThemeInput(e.target.value)}
               placeholder="给这笔账单写个主题，如：和朋友的晚餐"

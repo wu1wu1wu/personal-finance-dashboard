@@ -85,7 +85,7 @@ export default function Budget() {
           onClick={() => setShowEditor(!showEditor)}
           aria-expanded={showEditor}
           className={cn(
-            'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+            'flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors',
             showEditor
               ? 'bg-canvas text-ink-muted hover:text-ink'
               : 'bg-brand text-white hover:bg-brand/90',
@@ -125,7 +125,7 @@ export default function Budget() {
                 aria-pressed={active}
                 aria-label={`${m.replace('-', '年')}月`}
                 className={cn(
-                  'tnum shrink-0 rounded-lg px-3 py-1.5 text-sm transition-colors',
+                  'tnum flex min-h-11 shrink-0 items-center rounded-lg px-3 text-sm transition-colors',
                   active
                     ? 'bg-brand font-medium text-white'
                     : 'bg-surface text-ink-muted hover:text-ink',

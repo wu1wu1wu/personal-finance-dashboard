@@ -5,7 +5,9 @@
 // 改成环形图配一份 HTML 列表，信息密度更高，也更好点。
 // ============================================================
 
-import ReactECharts from 'echarts-for-react';
+import { useMemo } from 'react';
+import EChart from '@/components/charts/EChart';
+import { buildPieOption } from '@/components/dashboard/chart-options';
 import type { CategoryBreakdownPoint } from '@/core/dashboard-engine';
 import { formatCurrency, formatCurrencyShort } from '@/utils/format';
 
@@ -17,42 +19,7 @@ interface CategoryPieChartProps {
 
 export default function CategoryPieChart({ data, onCategoryClick }: CategoryPieChartProps) {
   const total = data.reduce((sum, d) => sum + d.amount, 0);
-
-  const option = {
-    tooltip: {
-      trigger: 'item' as const,
-      formatter: (params: { name: string; value: number; percent: number; data: { count: number } }) =>
-        `<div style="font-weight:600;margin-bottom:4px">${params.name}</div>
-          <div>金额: ${formatCurrency(params.value)}</div>
-          <div>占比: ${params.percent}%</div>
-          <div>笔数: ${params.data.count} 笔</div>`,
-    },
-    series: [
-      {
-        type: 'pie',
-        radius: ['62%', '88%'],
-        center: ['50%', '50%'],
-        padAngle: 2,
-        itemStyle: {
-          borderRadius: 3,
-          borderColor: '#fff',
-          borderWidth: 2,
-        },
-        label: { show: false },
-        labelLine: { show: false },
-        emphasis: {
-          scaleSize: 4,
-          itemStyle: { shadowBlur: 8, shadowColor: 'rgba(0,0,0,0.12)' },
-        },
-        data: data.map((d) => ({
-          name: d.category,
-          value: d.amount,
-          itemStyle: { color: d.color },
-          count: d.count,
-        })),
-      },
-    ],
-  };
+  const option = useMemo(() => buildPieOption(data), [data]);
 
   const handleChartClick = (params: { name?: string }) => {
     if (onCategoryClick && params.name) onCategoryClick(params.name);
@@ -76,14 +43,13 @@ export default function CategoryPieChart({ data, onCategoryClick }: CategoryPieC
 
       {/* 宽屏并排，窄屏上下堆叠，避免卡片拉出大片空白 */}
       <div className="md:flex md:items-center md:gap-6">
-        {/* 环形图：中心显示本月支出合计 */}
-        <div className="relative mx-auto h-[148px] w-[148px] md:mx-0 md:shrink-0">
-          <ReactECharts
-            option={option}
-            style={{ height: 148, width: 148 }}
-            opts={{ renderer: 'svg' }}
-            onEvents={{ click: handleChartClick }}
-          />
+        {/* 环形图：中心显示本月支出合计。
+            数据由右侧列表完整承载（可点击），所以这里对读屏软件隐藏，避免重复播报 */}
+        <div
+          className="relative mx-auto h-[148px] w-[148px] md:mx-0 md:shrink-0"
+          aria-hidden="true"
+        >
+          <EChart option={option} style={{ height: 148, width: 148 }} onEvents={{ click: handleChartClick }} />
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
             <span className="text-[11px] text-ink-subtle">本月支出</span>
             <span className="tnum text-sm font-semibold text-ink">

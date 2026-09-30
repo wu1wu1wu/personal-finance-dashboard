@@ -125,9 +125,10 @@ export default function PeriodicList({ data, onTogglePeriodic }: PeriodicListPro
                   type="button"
                   onClick={() => onTogglePeriodic(item.counterparty, item.amount)}
                   aria-label={`取消标记 ${item.counterparty} 为周期交易`}
-                  className="shrink-0 rounded-md p-1 text-ink-subtle opacity-0 transition-colors hover:bg-expense-soft hover:text-expense focus-visible:opacity-100 group-hover:opacity-100"
+                  // 常驻可见：触屏上没有 hover，藏起来的按钮既点不到又容易被误触
+                  className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-expense-soft hover:text-expense"
                 >
-                  <X size={14} aria-hidden="true" />
+                  <X size={16} aria-hidden="true" />
                 </button>
               )}
             </li>
