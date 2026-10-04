@@ -10,6 +10,7 @@ import { useTransactionStore } from '@/stores/transaction-store';
 import { useClassificationStore } from '@/stores/classification-store';
 import { usePerTransactionLimits } from '@/hooks/usePerTransactionLimits';
 import { TRANSFER_CATEGORY } from '@/core/transaction-query';
+import { NOTE_MAX_LENGTH, normalizeNote } from '@/core/transaction-note';
 import { formatCurrency } from '@/utils/format';
 import { cn } from '@/utils/cn';
 import { compressImage } from '@/utils/image';
@@ -232,7 +233,7 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
           </p>
         )}
 
-        {/* 主题 + 配图 */}
+        {/* 手记 + 配图 */}
         <div className="border-b border-line pb-3">
           <label htmlFor="detail-theme" className="mb-1.5 block text-xs text-ink-subtle">
             {t('transactions.field.theme')}
@@ -243,7 +244,7 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
               name="theme"
               type="text"
               autoComplete="off"
-              maxLength={40}
+              maxLength={NOTE_MAX_LENGTH}
               value={themeInput}
               onChange={(e) => setThemeInput(e.target.value)}
               placeholder={t('transactions.detail.themePlaceholder')}
@@ -251,8 +252,8 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
             />
             <button
               type="button"
-              onClick={() => setTheme(txn.id, themeInput.trim())}
-              disabled={themeInput.trim() === txn.theme}
+              onClick={() => setTheme(txn.id, normalizeNote(themeInput))}
+              disabled={normalizeNote(themeInput) === txn.theme}
               className="shrink-0 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {t('common.save')}

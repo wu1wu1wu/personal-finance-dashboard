@@ -58,7 +58,16 @@ export const transactions: Record<keyof typeof zhTransactions, string> = {
   'transactions.confirmDelete': 'Confirm delete',
   'transactions.overLimit': 'Over the per-transaction limit of {amount}',
   'transactions.untitled': 'Untitled',
-  'transactions.removeTheme': 'Remove theme',
+
+  // Memos (cards in the dashboard "Memos" view)
+  'transactions.note.editNamed': 'Edit memo: {name}',
+  'transactions.note.placeholder': 'Add a memo…',
+  'transactions.note.remove': 'Remove memo and image',
+  'transactions.note.removed': 'Memo removed',
+  'transactions.note.cleared': 'Memo cleared',
+  'transactions.note.addCover': 'Add image',
+  'transactions.note.replaceCover': 'Replace image',
+  'transactions.note.removeCover': 'Remove image',
 
   // Add transaction
   'transactions.add.title': 'Add transaction',
@@ -78,7 +87,7 @@ export const transactions: Record<keyof typeof zhTransactions, string> = {
   'transactions.field.categorySource': 'Category source',
   'transactions.field.periodic': 'Recurring',
   'transactions.field.importedAt': 'Imported at',
-  'transactions.field.theme': 'Theme',
+  'transactions.field.theme': 'Memo',
   'transactions.field.tags': 'Tags',
   'transactions.field.date': 'Date',
 
@@ -94,8 +103,8 @@ export const transactions: Record<keyof typeof zhTransactions, string> = {
   'transactions.deleteThis': 'Delete this transaction',
   'transactions.detail.overLimit':
     'This {amount} charge is over the {limit} per-transaction limit for "{category}" by {excess}.',
-  'transactions.detail.themePlaceholder': 'Give this bill a theme, e.g. Dinner with friends',
-  'transactions.detail.themeHint': 'Bills with a theme show up in the Themes view on the dashboard',
+  'transactions.detail.themePlaceholder': 'Add a memo to this bill, e.g. dinner with friends',
+  'transactions.detail.themeHint': 'Bills with a memo or an image show up in the dashboard Memos view',
   'transactions.detail.coverAlt': 'Bill cover image',
   'transactions.detail.uploading': 'Uploading…',
   'transactions.detail.replaceCover': 'Replace image',

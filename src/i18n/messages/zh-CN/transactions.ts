@@ -1,4 +1,4 @@
-// 明细页及其组件（列表行 / 详情弹窗 / 手动记一笔 / 分类标签 / 主题卡片）的文案
+// 明细页及其组件（列表行 / 详情弹窗 / 手动记一笔 / 分类标签 / 手记卡片）的文案
 export const transactions = {
   'transactions.title': '交易明细',
 
@@ -57,7 +57,16 @@ export const transactions = {
   'transactions.confirmDelete': '确认删除',
   'transactions.overLimit': '超过单笔上限 {amount}',
   'transactions.untitled': '未命名',
-  'transactions.removeTheme': '移除主题',
+
+  // 手记（看板「手记」视图里的卡片）
+  'transactions.note.editNamed': '编辑手记：{name}',
+  'transactions.note.placeholder': '写点手记…',
+  'transactions.note.remove': '移出手记（含配图）',
+  'transactions.note.removed': '已移出手记',
+  'transactions.note.cleared': '手记已清空',
+  'transactions.note.addCover': '加图',
+  'transactions.note.replaceCover': '换图',
+  'transactions.note.removeCover': '删图',
 
   // 记一笔
   'transactions.add.title': '记一笔',
@@ -77,7 +86,7 @@ export const transactions = {
   'transactions.field.categorySource': '分类来源',
   'transactions.field.periodic': '周期交易',
   'transactions.field.importedAt': '导入时间',
-  'transactions.field.theme': '主题',
+  'transactions.field.theme': '手记',
   'transactions.field.tags': '标签',
   'transactions.field.date': '日期',
 
@@ -93,8 +102,8 @@ export const transactions = {
   'transactions.deleteThis': '删除这笔交易',
   'transactions.detail.overLimit':
     '这笔 {amount} 超过了「{category}」的单笔上限 {limit}，超出 {excess}。',
-  'transactions.detail.themePlaceholder': '给这笔账单写个主题，如：和朋友的晚餐',
-  'transactions.detail.themeHint': '设了主题的账单会出现在看板的「主题」视图里',
+  'transactions.detail.themePlaceholder': '给这笔账单写点手记，如：和朋友的晚餐',
+  'transactions.detail.themeHint': '写下手记或配上图的账单，会出现在看板的「手记」里',
   'transactions.detail.coverAlt': '账单配图',
   'transactions.detail.uploading': '上传中…',
   'transactions.detail.replaceCover': '更换配图',

@@ -9,6 +9,7 @@ import { storage } from '@/storage/StorageAdapter';
 import { queuePersist } from '@/storage/persist-queue';
 import { coverKey, hydrateCovers, migrateInlineCovers, saveCover, stripCovers } from '@/storage/cover-store';
 import { classifyTransaction } from '@/core/classifier';
+import { clearedNotePatch, normalizeNote } from '@/core/transaction-note';
 import { getPeriodicTransactions, markPeriodicTransactions } from '@/core/periodic-engine';
 import {
   addTrashEntry,
@@ -100,8 +101,10 @@ interface TransactionStore {
   setImporting: (importing: boolean, message?: string | null) => void;
   /** 设置交易封面图 */
   setCoverImage: (id: string, coverImage: string) => void;
-  /** 设置交易主题（纯文字） */
+  /** 设置交易手记（纯文字；字段沿用旧名 theme） */
   setTheme: (id: string, theme: string) => void;
+  /** 一次清空手记：文字与配图一起清（卡片随之消失） */
+  clearNote: (id: string) => void;
   /** 持久化到 localStorage */
   persist: () => Promise<void>;
   /** 自动标记周期性交易（数据加载与导入后调用） */
@@ -444,9 +447,23 @@ export const useTransactionStore = create<TransactionStore>((set, get) => ({
   },
 
   setTheme: (id, theme) => {
+    // 入口统一清洗：卡片、详情弹窗、以后别的地方写进来的手记都守同一条上限
+    const next = normalizeNote(theme);
     set((state) => ({
-      transactions: state.transactions.map((t) => (t.id === id ? { ...t, theme } : t)),
+      transactions: state.transactions.map((t) => (t.id === id ? { ...t, theme: next } : t)),
     }));
+    get().persist();
+  },
+
+  clearNote: (id) => {
+    // 文字与配图必须在同一次 set 里清掉：分两次写会对整个数组多序列化一遍，
+    // 而且中间那一帧会出现「文字没了、图还在」的半截状态。
+    const patch = clearedNotePatch();
+    set((state) => ({
+      transactions: state.transactions.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+    }));
+    // 图片单独落盘，这里顺手把图片键删掉，别留下再也用不到的孤儿数据
+    void saveCover(id, '');
     get().persist();
   },
 

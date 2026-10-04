@@ -5,9 +5,10 @@
 // 封面图单独放一个视图，不占用概览的首屏空间。
 // ============================================================
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChartPie, ChevronDown, FileText, Images, TriangleAlert } from 'lucide-react';
+import type { Transaction } from '@/types';
 import { useTransactionStore } from '@/stores/transaction-store';
 import {
   calcMonthlyTrend,
@@ -35,7 +36,9 @@ import {
 import type { MessageKey } from '@/i18n';
 import { formatAmount, formatCurrency } from '@/utils/format';
 import { isConsumption } from '@/core/transaction-query';
+import { hasNoteCard, normalizeNote } from '@/core/transaction-note';
 import { cn } from '@/utils/cn';
+import UndoBar from '@/components/ui/UndoBar';
 import MonthlyTrendChart from '@/components/dashboard/MonthlyTrendChart';
 import CategoryPieChart from '@/components/dashboard/CategoryPieChart';
 import DailyBarChart from '@/components/dashboard/DailyBarChart';
@@ -52,11 +55,11 @@ const RECENT_COUNT = 5;
 
 const VIEW_OPTIONS: { value: ViewMode; labelKey: MessageKey; icon: typeof ChartPie }[] = [
   { value: 'overview', labelKey: 'dashboard.viewOverview', icon: ChartPie },
-  { value: 'album', labelKey: 'dashboard.viewAlbum', icon: Images },
+  { value: 'album', labelKey: 'dashboard.viewNotes', icon: Images },
 ];
 
 export default function Dashboard() {
-  const { transactions, loaded, loadFromStorage, togglePeriodicBatch, setTheme } =
+  const { transactions, loaded, loadFromStorage, togglePeriodicBatch, setTheme, setCoverImage, clearNote } =
     useTransactionStore();
   const { totalBudgets, loadFromStorage: loadBudgets } = useBudgetStore();
   const {
@@ -154,11 +157,49 @@ export default function Dashboard() {
   );
 
   const recentTxns = monthTxns.slice(0, RECENT_COUNT);
-  // 主题视图只陈列设过主题或配过图的账单
-  const themedTxns = useMemo(
-    () => monthTxns.filter((t) => t.theme || t.coverImage),
-    [monthTxns],
-  );
+  // 手记视图只陈列写了手记或配了图的账单
+  const noteTxns = useMemo(() => monthTxns.filter(hasNoteCard), [monthTxns]);
+
+  // 移出手记（或把手记改成空的）之后留一条撤销：配图是好不容易挑的，误删太难补
+  const [noteUndo, setNoteUndo] = useState<{
+    id: string;
+    note: string;
+    coverImage: string;
+    label: string;
+  } | null>(null);
+
+  const handleNoteChange = (txn: Transaction, note: string) => {
+    const next = normalizeNote(note);
+    setTheme(txn.id, next);
+    // 改空之后卡片会消失，同样给一次后悔的机会
+    if (!next && !txn.coverImage) {
+      setNoteUndo({
+        id: txn.id,
+        note: txn.theme,
+        coverImage: '',
+        label: t('transactions.note.cleared'),
+      });
+    }
+  };
+
+  const handleClearNote = (txn: Transaction) => {
+    setNoteUndo({
+      id: txn.id,
+      note: txn.theme,
+      coverImage: txn.coverImage,
+      label: t('transactions.note.removed'),
+    });
+    clearNote(txn.id);
+  };
+
+  const handleUndoNote = useCallback(() => {
+    if (!noteUndo) return;
+    if (noteUndo.note) setTheme(noteUndo.id, noteUndo.note);
+    if (noteUndo.coverImage) setCoverImage(noteUndo.id, noteUndo.coverImage);
+    setNoteUndo(null);
+  }, [noteUndo, setTheme, setCoverImage]);
+
+  const dismissNoteUndo = useCallback(() => setNoteUndo(null), []);
 
   const handleUnmarkPeriodic = (counterparty: string, amount: number) => {
     // 一次批量写回：逐条 toggle 会触发 N 次全量序列化
@@ -389,28 +430,38 @@ export default function Dashboard() {
         </>
       )}
 
-      {/* ====== 主题视图 ====== */}
+      {/* ====== 手记视图 ====== */}
       {!isLoading && !isEmpty && viewMode === 'album' && (
         <>
-          {themedTxns.length > 0 ? (
+          {noteTxns.length > 0 ? (
             <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {themedTxns.map((txn) => (
+              {noteTxns.map((txn) => (
                 <TransactionCard
                   key={txn.id}
                   txn={txn}
                   onClick={() => navigate(`/transactions?id=${encodeURIComponent(txn.id)}`)}
-                  onClearTheme={() => setTheme(txn.id, '')}
+                  onNoteChange={(note) => handleNoteChange(txn, note)}
+                  onCoverChange={(cover) => setCoverImage(txn.id, cover)}
+                  onClearNote={() => handleClearNote(txn)}
                 />
               ))}
             </ul>
           ) : (
             <div className="rounded-2xl border border-line bg-surface px-4 py-14 text-center">
               <Images size={28} className="mx-auto text-ink-subtle" aria-hidden="true" />
-              <p className="mt-3 text-sm font-medium text-ink">{t('dashboard.albumEmptyTitle')}</p>
-              <p className="mt-1 text-sm text-ink-subtle">{t('dashboard.albumEmptyHint')}</p>
+              <p className="mt-3 text-sm font-medium text-ink">{t('dashboard.notesEmptyTitle')}</p>
+              <p className="mt-1 text-sm text-ink-subtle">{t('dashboard.notesEmptyHint')}</p>
             </div>
           )}
         </>
+      )}
+
+      {noteUndo && (
+        <UndoBar
+          label={noteUndo.label}
+          onUndo={handleUndoNote}
+          onDismiss={dismissNoteUndo}
+        />
       )}
 
     </div>

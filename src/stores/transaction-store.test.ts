@@ -3,6 +3,7 @@ import { useTransactionStore } from './transaction-store'
 import { flushPersist } from '@/storage/persist-queue'
 import { coverKey } from '@/storage/cover-store'
 import { createTrashEntry, TRASH_TTL_MS } from '@/core/trash'
+import { NOTE_MAX_LENGTH } from '@/core/transaction-note'
 import { STORAGE_KEYS } from '@/types'
 import type { Transaction } from '@/types'
 
@@ -269,6 +270,76 @@ describe('最近删除（回收站）', () => {
     await flushPersist('transactions')
 
     expect(JSON.parse(fake[STORAGE_KEYS.TRASH] as string)).toHaveLength(1)
+  })
+})
+
+describe('setTheme（手记文字）', () => {
+  it('写入前统一清洗：去掉首尾空白，按上限截断', () => {
+    useTransactionStore.setState({ transactions: [txn({ id: 't1' })], trash: [], loaded: true })
+
+    useTransactionStore.getState().setTheme('t1', `  ${'记'.repeat(NOTE_MAX_LENGTH + 30)}  `)
+
+    const theme = useTransactionStore.getState().transactions[0].theme
+    expect(theme.startsWith('记')).toBe(true)
+    expect(theme).toHaveLength(NOTE_MAX_LENGTH)
+  })
+
+  it('纯空白等于没写', () => {
+    useTransactionStore.setState({
+      transactions: [txn({ id: 't1', theme: '旧手记' })],
+      trash: [],
+      loaded: true,
+    })
+
+    useTransactionStore.getState().setTheme('t1', '   ')
+
+    expect(useTransactionStore.getState().transactions[0].theme).toBe('')
+  })
+})
+
+describe('clearNote（移出手记）', () => {
+  it('手记文字与配图一次清掉，独立的图片键也一起删', () => {
+    const image = 'data:image/jpeg;base64,AAAA'
+    fake[coverKey('t1')] = JSON.stringify(image)
+    useTransactionStore.setState({
+      transactions: [txn({ id: 't1', theme: '和朋友的晚餐', coverImage: image })],
+      trash: [],
+      loaded: true,
+    })
+
+    useTransactionStore.getState().clearNote('t1')
+
+    const cleared = useTransactionStore.getState().transactions[0]
+    expect(cleared.theme).toBe('')
+    expect(cleared.coverImage).toBe('')
+    expect(fake[coverKey('t1')]).toBeUndefined()
+  })
+
+  it('只动这一笔，别的手记不受影响', () => {
+    useTransactionStore.setState({
+      transactions: [txn({ id: 't1', theme: '手记一' }), txn({ id: 't2', theme: '手记二' })],
+      trash: [],
+      loaded: true,
+    })
+
+    useTransactionStore.getState().clearNote('t1')
+
+    expect(useTransactionStore.getState().transactions[1].theme).toBe('手记二')
+  })
+
+  it('清完会落盘，主数组里不留图片', async () => {
+    useTransactionStore.setState({
+      transactions: [txn({ id: 't1', theme: '和朋友的晚餐', coverImage: 'data:image/jpeg;base64,AAAA' })],
+      trash: [],
+      loaded: true,
+    })
+
+    useTransactionStore.getState().clearNote('t1')
+    await flushPersist('transactions')
+
+    const saved = JSON.parse(fake[STORAGE_KEYS.TRANSACTIONS] as string)[0]
+    expect(saved.theme).toBe('')
+    expect(saved.coverImage).toBe('')
   })
 })
 

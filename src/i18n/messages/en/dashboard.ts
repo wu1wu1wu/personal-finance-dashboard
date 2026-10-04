@@ -4,7 +4,7 @@ export const dashboard: Record<keyof typeof zhDashboard, string> = {
   'dashboard.title': 'Dashboard',
   'dashboard.reportLink': 'Monthly report',
   'dashboard.viewOverview': 'Overview',
-  'dashboard.viewAlbum': 'Themes',
+  'dashboard.viewNotes': 'Memos',
   'dashboard.viewSwitcherLabel': 'Dashboard view',
   'dashboard.monthPickerLabel': 'Select month',
   'dashboard.emptyTitle': 'No records yet',
@@ -20,9 +20,9 @@ export const dashboard: Record<keyof typeof zhDashboard, string> = {
   'dashboard.recentTitle': 'Recent transactions',
   'dashboard.viewAll': 'View all',
   'dashboard.moreAnalysis': 'More analysis',
-  'dashboard.albumEmptyTitle': 'No themed records this month',
-  'dashboard.albumEmptyHint':
-    'Open a record in Transactions and add a theme or a cover image to see it here',
+  'dashboard.notesEmptyTitle': 'No memos this month',
+  'dashboard.notesEmptyHint':
+    'Open a record in Transactions and add a memo or an image to see it here',
   'dashboard.trendTitle': 'Monthly trend',
   'dashboard.dailyTitle': 'Daily spending',
   'dashboard.categoryPieTitle': 'Category share',
