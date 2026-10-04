@@ -39,7 +39,6 @@ export const settings: Record<keyof typeof zhSettings, string> = {
 
   // Clean up by month
   'settings.cleanup.title': 'Clean up by month',
-  'settings.cleanup.back': 'Back to settings',
   'settings.cleanup.description':
     'Check the months you want to delete. Only those transactions and their budget settings are removed; category rules and other months stay untouched.',
   'settings.cleanup.removed_one': 'Deleted {count} transaction.',

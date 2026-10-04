@@ -4,6 +4,7 @@ import { ChevronRight, Database, FolderOpen, Info, Smartphone, SunMoon, Tags } f
 import { Capacitor } from '@capacitor/core';
 import { useT } from '@/i18n';
 import type { MessageKey } from '@/i18n';
+import type { BackFromState } from '@/hooks/useBackTo';
 import { useTransactionStore } from '@/stores/transaction-store';
 import { useClassificationStore } from '@/stores/classification-store';
 import { useBudgetStore } from '@/stores/budget-store';
@@ -96,6 +97,7 @@ export default function Settings() {
           <Link
             key={item.to}
             to={item.to}
+            state={{ from: '/settings' } satisfies BackFromState}
             className={`flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-canvas ${
               index > 0 ? 'border-t border-line' : ''
             }`}

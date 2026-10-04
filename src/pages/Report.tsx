@@ -105,7 +105,9 @@ export default function Report() {
   const dailySummary = useMemo(() => summarizeDaily(dailyPoints, t), [dailyPoints, t]);
 
   const goToMonth = (next: string) => {
-    setSearchParams(next === getCurrentMonth() ? {} : { month: next });
+    // 切月份是「换一个视角」，不是一次导航：用 replace，
+    // 否则连看 5 个月后按返回键要按 5 次才回得去
+    setSearchParams(next === getCurrentMonth() ? {} : { month: next }, { replace: true });
   };
 
   /** 复制一份纯文字版，方便贴到聊天里 */

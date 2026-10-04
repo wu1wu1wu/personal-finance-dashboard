@@ -39,7 +39,6 @@ export const settings = {
 
   // 按月份清理
   'settings.cleanup.title': '按月份清理',
-  'settings.cleanup.back': '返回设置',
   'settings.cleanup.description':
     '勾选要删除的月份，只会清掉这些月份的交易记录和对应月份的预算设置。分类规则、其他月份的数据不受影响。',
   'settings.cleanup.removed_one': '已删除 {count} 笔交易。',

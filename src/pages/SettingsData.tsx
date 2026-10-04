@@ -390,7 +390,7 @@ export default function SettingsData() {
           </p>
           <button
             type="button"
-            onClick={() => navigate('/cleanup')}
+            onClick={() => navigate('/cleanup', { state: { from: '/settings/data' } })}
             className="mt-3 flex items-center gap-1.5 rounded-lg bg-surface px-4 py-2 text-sm font-medium text-ink transition-colors hover:bg-brand-soft hover:text-brand"
           >
             <CalendarMinus size={15} aria-hidden="true" />

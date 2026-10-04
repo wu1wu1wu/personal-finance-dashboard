@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import {
   FileText,
   LayoutDashboard,
@@ -9,6 +9,7 @@ import {
   Settings as SettingsIcon,
 } from 'lucide-react';
 import AddTransactionModal from '@/components/transactions/AddTransactionModal';
+import NavItem from '@/components/ui/NavItem';
 import PageFallback from '@/components/ui/PageFallback';
 import PersistAlert from '@/components/ui/PersistAlert';
 import PwaStatus from '@/components/ui/PwaStatus';
@@ -74,36 +75,34 @@ export default function App() {
               {t('common.appName')}
             </span>
             {navItems.map((item) => (
-              <NavLink
+              <NavItem
                 key={item.to}
                 to={item.to}
                 end={item.to === '/'}
-                className={({ isActive }) =>
+                label={t(item.labelKey)}
+                icon={<item.icon size={16} aria-hidden="true" />}
+                className={(isActive) =>
                   `flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors ${
                     isActive
                       ? 'bg-brand-soft text-brand'
                       : 'text-ink-muted hover:bg-canvas hover:text-ink'
                   }`
                 }
-              >
-                <item.icon size={16} aria-hidden="true" />
-                {t(item.labelKey)}
-              </NavLink>
+              />
             ))}
 
             {/* 报告只在桌面端导航里露出来：移动端底部栏只有四个位置，
                 报告从看板的入口卡片进 */}
-            <NavLink
+            <NavItem
               to="/report"
-              className={({ isActive }) =>
+              label={t('nav.report')}
+              icon={<FileText size={16} aria-hidden="true" />}
+              className={(isActive) =>
                 `hidden min-h-11 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors md:flex ${
                   isActive ? 'bg-brand-soft text-brand' : 'text-ink-muted hover:bg-canvas hover:text-ink'
                 }`
               }
-            >
-              <FileText size={16} aria-hidden="true" />
-              {t('nav.report')}
-            </NavLink>
+            />
 
             <button
               type="button"
@@ -145,19 +144,18 @@ export default function App() {
         >
           <div className="flex items-stretch">
             {navItems.slice(0, 2).map((item) => (
-              <NavLink
+              <NavItem
                 key={item.to}
                 to={item.to}
                 end={item.to === '/'}
-                className={({ isActive }) =>
+                label={t(item.labelKey)}
+                icon={<item.icon size={21} strokeWidth={2} aria-hidden="true" />}
+                className={(isActive) =>
                   `flex flex-1 flex-col items-center justify-center gap-1 py-2.5 text-[11px] font-medium transition-colors ${
                     isActive ? 'text-brand' : 'text-ink-subtle'
                   }`
                 }
-              >
-                <item.icon size={21} strokeWidth={2} aria-hidden="true" />
-                <span>{t(item.labelKey)}</span>
-              </NavLink>
+              />
             ))}
 
             {/* 中间的新增按钮：放在导航栏里，避免浮动按钮遮住列表内容 */}
@@ -173,19 +171,18 @@ export default function App() {
             </div>
 
             {navItems.slice(2).map((item) => (
-              <NavLink
+              <NavItem
                 key={item.to}
                 to={item.to}
                 end={item.to === '/'}
-                className={({ isActive }) =>
+                label={t(item.labelKey)}
+                icon={<item.icon size={21} strokeWidth={2} aria-hidden="true" />}
+                className={(isActive) =>
                   `flex flex-1 flex-col items-center justify-center gap-1 py-2.5 text-[11px] font-medium transition-colors ${
                     isActive ? 'text-brand' : 'text-ink-subtle'
                   }`
                 }
-              >
-                <item.icon size={21} strokeWidth={2} aria-hidden="true" />
-                <span>{t(item.labelKey)}</span>
-              </NavLink>
+              />
             ))}
           </div>
         </nav>

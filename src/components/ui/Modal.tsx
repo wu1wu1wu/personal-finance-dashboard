@@ -7,6 +7,7 @@ import type { ReactNode } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 import { useT } from '@/i18n';
+import { useBackHandler } from '@/hooks/useBackHandler';
 import { cn } from '@/utils/cn';
 
 interface ModalProps {
@@ -37,6 +38,10 @@ export default function Modal({
   className,
 }: ModalProps) {
   const { t } = useT();
+
+  // 安卓返回键：先关掉当前这层弹窗，而不是退出整个 App。
+  // 全项目只有这一个对话框封装，接在这里就覆盖了详情、记一笔、月份选择等所有弹窗。
+  useBackHandler(onClose);
 
   return (
     <Dialog.Root

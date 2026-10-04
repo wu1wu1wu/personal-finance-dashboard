@@ -3,18 +3,17 @@
 // ============================================================
 
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, Trash } from 'lucide-react';
+import { Check, Trash } from 'lucide-react';
 import { formatMonthForLocale, useLocale, useT } from '@/i18n';
 import { useTransactionStore } from '@/stores/transaction-store';
 import { useBudgetStore } from '@/stores/budget-store';
+import PageHeader from '@/components/ui/PageHeader';
 import UndoBar from '@/components/ui/UndoBar';
 import { formatCurrency } from '@/utils/format';
 import { isConsumption } from '@/core/transaction-query';
 import { cn } from '@/utils/cn';
 
 export default function Cleanup() {
-  const navigate = useNavigate();
   const { t } = useT();
   const locale = useLocale();
   const { transactions, loaded, loadFromStorage, deleteByMonths, restoreTrashEntry } =
@@ -112,19 +111,11 @@ export default function Cleanup() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => navigate('/settings/data')}
-          aria-label={t('settings.cleanup.back')}
-          className="-ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-canvas hover:text-ink"
-        >
-          <ArrowLeft size={18} aria-hidden="true" />
-        </button>
-        <h1 className="text-xl font-semibold text-ink">{t('settings.cleanup.title')}</h1>
-      </div>
-
-      <p className="text-sm text-ink-muted">{t('settings.cleanup.description')}</p>
+      <PageHeader
+        title={t('settings.cleanup.title')}
+        description={t('settings.cleanup.description')}
+        backTo="/settings/data"
+      />
 
       {removedCount !== null && (
         <p
