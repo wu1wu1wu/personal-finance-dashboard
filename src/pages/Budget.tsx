@@ -13,13 +13,12 @@ import {
 } from '@/core/budget-engine';
 import BudgetProgressBar from '@/components/budget/BudgetProgressBar';
 import BudgetEditor from '@/components/budget/BudgetEditor';
-import { getCurrentMonth, buildMonthOptions } from '@/utils/date';
+import MonthPicker from '@/components/ui/MonthPicker';
+import { getCurrentMonth } from '@/utils/date';
 import { formatCurrency } from '@/utils/format';
 import {
   categoryLabel,
   formatDateTimeForLocale,
-  formatMonthForLocale,
-  formatMonthShortForLocale,
   useLocale,
   useT,
 } from '@/i18n';
@@ -41,13 +40,13 @@ export default function Budget() {
     loadTxns();
   }, [loadBudgets, loadTxns]);
 
-  // 月份选项：最近 6 个月 ∪ 有数据的月份 ∪ 有预算的月份 ∪ 下个月（可以提前给下个月设预算）
-  const months = useMemo(
-    () =>
-      buildMonthOptions(
-        transactions.map((t) => t.transactionTime.substring(0, 7)),
-        [...budgets.map((b) => b.month), ...Object.keys(totalBudgets)],
-      ),
+  // 有记录的月份（含已设预算的月份）：年月选择器里打点用
+  const monthsWithData = useMemo(
+    () => [
+      ...transactions.map((t) => t.transactionTime.substring(0, 7)),
+      ...budgets.map((b) => b.month),
+      ...Object.keys(totalBudgets),
+    ],
     [transactions, budgets, totalBudgets],
   );
 
@@ -117,35 +116,12 @@ export default function Budget() {
         </div>
       )}
 
-      {/* 月份切换：横向滚动，窄屏不折行 */}
-      <div
-        role="group"
-        aria-label={t('budget.monthPickerLabel')}
-        className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
-        <div className="flex w-max gap-1.5">
-          {months.map((m) => {
-            const active = m === selectedMonth;
-            return (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setSelectedMonth(m)}
-                aria-pressed={active}
-                aria-label={formatMonthForLocale(locale, m)}
-                className={cn(
-                  'tnum flex min-h-11 shrink-0 items-center rounded-lg px-3 text-sm transition-colors',
-                  active
-                    ? 'bg-brand font-medium text-white'
-                    : 'bg-surface text-ink-muted hover:text-ink',
-                )}
-              >
-                {formatMonthShortForLocale(locale, m)}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      {/* 月份：带年份的年月选择器（可以翻到下个月提前设预算） */}
+      <MonthPicker
+        value={selectedMonth}
+        onChange={setSelectedMonth}
+        monthsWithData={monthsWithData}
+      />
 
       {isLoading && (
         <p className="py-8 text-center text-sm text-ink-subtle">{t('common.loading')}</p>

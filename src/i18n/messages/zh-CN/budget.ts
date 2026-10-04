@@ -4,7 +4,6 @@ export const budget = {
   'budget.heading': '预算管理',
   'budget.done': '完成',
   'budget.setBudget': '设置预算',
-  'budget.monthPickerLabel': '选择月份',
   'budget.emptyTitle': '还未设置预算',
   'budget.emptyHint': '点右上角「设置预算」为这个月设定上限',
   'budget.exceededCount_one': '1 个分类已超支',

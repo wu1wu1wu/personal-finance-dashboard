@@ -5,7 +5,6 @@ export const budget: Record<keyof typeof zhBudget, string> = {
   'budget.heading': 'Budgets',
   'budget.done': 'Done',
   'budget.setBudget': 'Set budget',
-  'budget.monthPickerLabel': 'Select month',
   'budget.emptyTitle': 'No budget yet',
   'budget.emptyHint': 'Tap "Set budget" in the top right to set a limit for this month',
   'budget.exceededCount_one': '1 category over budget',

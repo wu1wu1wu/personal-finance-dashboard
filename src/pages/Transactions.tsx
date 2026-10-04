@@ -12,28 +12,27 @@ import {
   RefreshCw,
   Search,
   SearchX,
+  SlidersHorizontal,
   X,
 } from 'lucide-react';
 import TransactionDetailModal from '@/components/transactions/TransactionDetailModal';
 import TransactionListItem from '@/components/transactions/TransactionListItem';
 import CategoryIcon from '@/components/ui/CategoryIcon';
+import MonthPicker from '@/components/ui/MonthPicker';
 import UndoBar from '@/components/ui/UndoBar';
 import { useTransactionStore } from '@/stores/transaction-store';
 import { useClassificationStore } from '@/stores/classification-store';
 import { usePerTransactionLimits } from '@/hooks/usePerTransactionLimits';
 import { classifyTransaction } from '@/core/classifier';
 import {
+  DEFAULT_FILTERS,
+  countActiveFilters,
+  hasAdvancedFilters,
   parseFilterParams,
   mergeFilterParams,
   type TransactionFilterState,
 } from '@/core/transaction-filters';
-import {
-  categoryLabel,
-  formatMonthForLocale,
-  formatMonthShortForLocale,
-  useLocale,
-  useT,
-} from '@/i18n';
+import { categoryLabel, useLocale, useT } from '@/i18n';
 import type { MessageKey } from '@/i18n';
 import { formatCurrency, parseAmountInput } from '@/utils/format';
 import { cn } from '@/utils/cn';
@@ -259,10 +258,28 @@ export default function Transactions() {
     }
   };
 
-  const monthChips = [
-    { value: '', label: t('common.all') },
-    ...months.map((m) => ({ value: m, label: formatMonthShortForLocale(locale, m) })),
-  ];
+  // 高级条件（方向 / 排序 / 金额）默认收起：它们不是天天要调的，
+  // 常驻会把半屏让给筛选区；深链带进来时自动展开，别把生效的条件藏起来。
+  const advancedActive = hasAdvancedFilters(filters);
+  const activeFilterCount = countActiveFilters(filters);
+  const [filtersOpen, setFiltersOpen] = useState(advancedActive);
+
+  useEffect(() => {
+    if (advancedActive) setFiltersOpen(true);
+  }, [advancedActive]);
+
+  const clearAdvancedFilters = () => {
+    // 金额输入框是本地 state（打字跟手），这里要一起清，
+    // 否则那个 250ms 的防抖回写会把刚清掉的条件又塞回 URL
+    setMinAmount('');
+    setMaxAmount('');
+    applyFilters({
+      direction: DEFAULT_FILTERS.direction,
+      sort: DEFAULT_FILTERS.sort,
+      minAmount: '',
+      maxAmount: '',
+    });
+  };
 
   return (
     <div className="space-y-3">
@@ -318,86 +335,16 @@ export default function Transactions() {
         </p>
       )}
 
-      {/* 月份筛选：左上角，按月份倒序 */}
-      {monthChips.length > 1 && (
-        <div
-          role="group"
-          aria-label={t('transactions.month.groupLabel')}
-          className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        >
-          <div className="flex w-max gap-1.5">
-            {monthChips.map((chip) => {
-              const active = month === chip.value;
-              return (
-                <button
-                  key={chip.value || 'all'}
-                  type="button"
-                  onClick={() => applyFilters({ month: chip.value })}
-                  aria-pressed={active}
-                  aria-label={
-                    chip.value
-                      ? formatMonthForLocale(locale, chip.value)
-                      : t('transactions.month.all')
-                  }
-                  className={cn(
-                    'tnum flex min-h-11 shrink-0 items-center rounded-lg px-3 text-sm transition-colors',
-                    active
-                      ? 'bg-brand font-medium text-white'
-                      : 'bg-surface text-ink-muted hover:text-ink',
-                  )}
-                >
-                  {chip.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {/* 工具条：月份 + 搜索 + 筛选开关（高级条件收在面板里，默认不占地方） */}
+      <div className="flex items-center gap-2">
+        <MonthPicker
+          value={month}
+          onChange={(next) => applyFilters({ month: next })}
+          monthsWithData={months}
+          allowAll
+        />
 
-      {/* 收支方向 + 排序 + 搜索 */}
-      <div className="space-y-2 rounded-xl border border-line bg-surface p-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <div
-            role="group"
-            aria-label={t('transactions.directionGroup')}
-            className="flex rounded-lg bg-canvas p-0.5"
-          >
-            {DIRECTION_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => applyFilters({ direction: opt.value })}
-                aria-pressed={direction === opt.value}
-                className={cn(
-                  'flex min-h-11 items-center rounded-md px-3 text-xs transition-colors',
-                  direction === opt.value
-                    ? 'bg-surface font-medium text-ink shadow-sm'
-                    : 'text-ink-muted hover:text-ink',
-                )}
-              >
-                {t(opt.labelKey)}
-              </button>
-            ))}
-          </div>
-
-          <label className="sr-only" htmlFor="txn-sort">
-            {t('transactions.sort.label')}
-          </label>
-          <select
-            id="txn-sort"
-            value={sort}
-            onChange={(e) => applyFilters({ sort: e.target.value as SortKey })}
-            className="rounded-lg border border-line bg-surface px-2 py-1.5 text-xs text-ink"
-          >
-            {SORT_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {t(opt.labelKey)}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="relative">
+        <div className="relative min-w-0 flex-1">
           <Search
             size={15}
             aria-hidden="true"
@@ -415,52 +362,134 @@ export default function Transactions() {
           />
         </div>
 
-        {/* 金额区间：按绝对值比较，收入和支出一视同仁 */}
-        <div className="flex items-center gap-2">
-          <label className="sr-only" htmlFor="txn-min-amount">
-            {t('transactions.minAmount')}
-          </label>
-          <input
-            id="txn-min-amount"
-            type="number"
-            inputMode="decimal"
-            min="0"
-            step="0.01"
-            value={minAmount}
-            onChange={(e) => setMinAmount(e.target.value)}
-            placeholder={t('transactions.minAmount')}
-            className="tnum w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-subtle focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
-          />
-          <span className="shrink-0 text-xs text-ink-subtle">{t('transactions.amountTo')}</span>
-          <label className="sr-only" htmlFor="txn-max-amount">
-            {t('transactions.maxAmount')}
-          </label>
-          <input
-            id="txn-max-amount"
-            type="number"
-            inputMode="decimal"
-            min="0"
-            step="0.01"
-            value={maxAmount}
-            onChange={(e) => setMaxAmount(e.target.value)}
-            placeholder={t('transactions.maxAmount')}
-            className="tnum w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-subtle focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
-          />
-          {(minAmount || maxAmount) && (
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((open) => !open)}
+          aria-expanded={filtersOpen}
+          aria-label={t('transactions.filter.toggleWithCount', { count: activeFilterCount })}
+          className={cn(
+            'flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors',
+            filtersOpen || advancedActive
+              ? 'border-brand/40 bg-brand-soft font-medium text-brand'
+              : 'border-line bg-surface text-ink-muted hover:bg-canvas hover:text-ink',
+          )}
+        >
+          <SlidersHorizontal size={15} aria-hidden="true" />
+          <span className="hidden sm:inline">{t('transactions.filter.toggle')}</span>
+          {activeFilterCount > 0 && (
+            <span className="tnum flex h-5 min-w-5 items-center justify-center rounded-full bg-brand px-1 text-[11px] font-medium text-white">
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* 高级条件：方向 / 排序 / 金额区间 */}
+      {filtersOpen && (
+        <div
+          role="group"
+          aria-label={t('transactions.filter.advanced')}
+          className="space-y-2 rounded-xl border border-line bg-surface p-3"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <div
+              role="group"
+              aria-label={t('transactions.directionGroup')}
+              className="flex rounded-lg bg-canvas p-0.5"
+            >
+              {DIRECTION_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => applyFilters({ direction: opt.value })}
+                  aria-pressed={direction === opt.value}
+                  className={cn(
+                    'flex min-h-11 items-center rounded-md px-3 text-xs transition-colors',
+                    direction === opt.value
+                      ? 'bg-surface font-medium text-ink shadow-sm'
+                      : 'text-ink-muted hover:text-ink',
+                  )}
+                >
+                  {t(opt.labelKey)}
+                </button>
+              ))}
+            </div>
+
+            <label className="sr-only" htmlFor="txn-sort">
+              {t('transactions.sort.label')}
+            </label>
+            <select
+              id="txn-sort"
+              value={sort}
+              onChange={(e) => applyFilters({ sort: e.target.value as SortKey })}
+              className="rounded-lg border border-line bg-surface px-2 py-1.5 text-xs text-ink"
+            >
+              {SORT_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {t(opt.labelKey)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 金额区间：按绝对值比较，收入和支出一视同仁 */}
+          <div className="flex items-center gap-2">
+            <label className="sr-only" htmlFor="txn-min-amount">
+              {t('transactions.minAmount')}
+            </label>
+            <input
+              id="txn-min-amount"
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.01"
+              value={minAmount}
+              onChange={(e) => setMinAmount(e.target.value)}
+              placeholder={t('transactions.minAmount')}
+              className="tnum w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-subtle focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+            />
+            <span className="shrink-0 text-xs text-ink-subtle">{t('transactions.amountTo')}</span>
+            <label className="sr-only" htmlFor="txn-max-amount">
+              {t('transactions.maxAmount')}
+            </label>
+            <input
+              id="txn-max-amount"
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.01"
+              value={maxAmount}
+              onChange={(e) => setMaxAmount(e.target.value)}
+              placeholder={t('transactions.maxAmount')}
+              className="tnum w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-subtle focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+            />
+            {(minAmount || maxAmount) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMinAmount('');
+                  setMaxAmount('');
+                }}
+                aria-label={t('transactions.clearAmountFilter')}
+                className="shrink-0 rounded-lg px-2 py-2 text-ink-subtle hover:text-ink"
+              >
+                <X size={14} aria-hidden="true" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between gap-2 pt-0.5">
+            <p className="text-[11px] text-ink-subtle">{t('transactions.filter.advancedHint')}</p>
             <button
               type="button"
-              onClick={() => {
-                setMinAmount('');
-                setMaxAmount('');
-              }}
-              aria-label={t('transactions.clearAmountFilter')}
-              className="shrink-0 rounded-lg px-2 py-2 text-ink-subtle hover:text-ink"
+              onClick={clearAdvancedFilters}
+              className="shrink-0 text-xs text-brand hover:underline"
             >
-              <X size={14} aria-hidden="true" />
+              {t('transactions.filter.clearAdvanced')}
             </button>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 当前筛选条件 */}
       {activeCategory && (

@@ -107,3 +107,33 @@ export function parseFilterParams(params: URLSearchParams): TransactionFilterSta
     deepLinkId: params.get('id'),
   };
 }
+
+/**
+ * 是否用到了「高级条件」：收支方向、排序、金额区间。
+ *
+ * 明细页把这三项收在默认折叠的面板里——它们不是天天要调的东西，
+ * 常驻会把半屏让给筛选；但深链带进来时必须自动展开，否则用户看不见生效的条件。
+ * 分类 / 待确认 / 月份 / 关键词不算：它们各自有常驻入口，收起面板也不影响。
+ */
+export function hasAdvancedFilters(state: TransactionFilterState): boolean {
+  return (
+    state.direction !== DEFAULT_FILTERS.direction ||
+    state.sort !== DEFAULT_FILTERS.sort ||
+    Boolean(state.minAmount) ||
+    Boolean(state.maxAmount)
+  );
+}
+
+/** 当前生效的条件个数（筛选按钮上的角标） */
+export function countActiveFilters(state: TransactionFilterState): number {
+  let count = 0;
+  // 分类与待确认收件箱互斥，算同一项
+  if (state.pendingOnly || state.category) count += 1;
+  if (state.month) count += 1;
+  if (state.keyword.trim()) count += 1;
+  if (state.direction !== DEFAULT_FILTERS.direction) count += 1;
+  if (state.sort !== DEFAULT_FILTERS.sort) count += 1;
+  if (state.minAmount) count += 1;
+  if (state.maxAmount) count += 1;
+  return count;
+}

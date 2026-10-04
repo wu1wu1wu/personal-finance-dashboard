@@ -56,4 +56,14 @@ export const common: Record<keyof typeof zhCommon, string> = {
   'common.error.reload': 'Reload page',
   'common.error.unknown': 'Unknown error',
   'common.error.backupFileName': 'ledger-backup-before-crash',
+  // Month picker (shared by dashboard / budget / transactions)
+  'common.monthPicker.label': 'Choose month',
+  'common.monthPicker.description': 'Browse by year, then tap a month',
+  'common.monthPicker.prevYear': 'Previous year',
+  'common.monthPicker.nextYear': 'Next year',
+  'common.monthPicker.yearLabel': '{year}',
+  'common.monthPicker.thisMonth': 'This month',
+  'common.monthPicker.allMonths': 'All months',
+  'common.monthPicker.dataHint': 'Months with records are marked with a dot',
+  'common.monthPicker.currentHint': 'Showing {month}',
 };

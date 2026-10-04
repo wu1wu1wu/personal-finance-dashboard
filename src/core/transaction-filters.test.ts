@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
   DEFAULT_FILTERS,
+  countActiveFilters,
+  hasAdvancedFilters,
   mergeFilterParams,
   parseFilterParams,
   type TransactionFilterState,
@@ -106,5 +108,69 @@ describe('mergeFilterParams', () => {
     const roundTripped = parseFilterParams(mergeFilterParams(state(), original))
 
     expect(roundTripped).toEqual(original)
+  })
+})
+
+describe('hasAdvancedFilters', () => {
+  it('默认筛选没有高级条件（明细页的筛选面板默认收起）', () => {
+    expect(hasAdvancedFilters(state())).toBe(false)
+  })
+
+  it('分类、月份、待确认、关键词都不算高级条件（它们各自有常驻入口）', () => {
+    const visible = state({
+      category: '餐饮美食',
+      month: '2026-09',
+      keyword: '肯德基',
+      pendingOnly: true,
+    })
+
+    expect(hasAdvancedFilters(visible)).toBe(false)
+  })
+
+  it('收支方向动过就算', () => {
+    expect(hasAdvancedFilters(state({ direction: 'income' }))).toBe(true)
+  })
+
+  it('排序动过就算', () => {
+    expect(hasAdvancedFilters(state({ sort: 'amount-desc' }))).toBe(true)
+  })
+
+  it('金额区间有值就算', () => {
+    expect(hasAdvancedFilters(state({ minAmount: '10' }))).toBe(true)
+    expect(hasAdvancedFilters(state({ maxAmount: '100' }))).toBe(true)
+  })
+})
+
+describe('countActiveFilters', () => {
+  it('默认筛选是 0 项', () => {
+    expect(countActiveFilters(state())).toBe(0)
+  })
+
+  it('逐项累加（分类与待确认算同一项）', () => {
+    expect(countActiveFilters(state({ category: '餐饮美食' }))).toBe(1)
+    expect(countActiveFilters(state({ pendingOnly: true, category: '餐饮美食' }))).toBe(1)
+    expect(countActiveFilters(state({ month: '2026-09' }))).toBe(1)
+    expect(countActiveFilters(state({ keyword: '京东' }))).toBe(1)
+    expect(countActiveFilters(state({ direction: 'expense' }))).toBe(1)
+    expect(countActiveFilters(state({ sort: 'time-asc' }))).toBe(1)
+    expect(countActiveFilters(state({ minAmount: '10', maxAmount: '100' }))).toBe(2)
+  })
+
+  it('全开时等于各项之和', () => {
+    const all = state({
+      category: '餐饮美食',
+      month: '2026-09',
+      keyword: '京东',
+      direction: 'expense',
+      sort: 'amount-desc',
+      minAmount: '10',
+      maxAmount: '100',
+    })
+
+    expect(countActiveFilters(all)).toBe(7)
+  })
+
+  it('纯空白关键词不算（输入框里有空格不该亮角标）', () => {
+    expect(countActiveFilters(state({ keyword: '   ' }))).toBe(0)
   })
 })

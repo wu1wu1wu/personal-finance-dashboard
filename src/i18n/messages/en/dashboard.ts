@@ -6,7 +6,6 @@ export const dashboard: Record<keyof typeof zhDashboard, string> = {
   'dashboard.viewOverview': 'Overview',
   'dashboard.viewNotes': 'Memos',
   'dashboard.viewSwitcherLabel': 'Dashboard view',
-  'dashboard.monthPickerLabel': 'Select month',
   'dashboard.emptyTitle': 'No records yet',
   'dashboard.emptyHint':
     'Tap "Add" at the bottom (top right on desktop), or import a WeChat bill in Settings',

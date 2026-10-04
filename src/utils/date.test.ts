@@ -9,7 +9,6 @@ import {
   getCurrentMonth,
   addMonthsClamped,
   getTodayLocal,
-  buildMonthOptions,
   shiftMonthKey,
 } from './date'
 
@@ -22,42 +21,6 @@ describe('getTodayLocal', () => {
 
   it('补零到 yyyy-MM-dd', () => {
     expect(getTodayLocal(new Date(2026, 0, 5, 12, 0, 0))).toBe('2026-01-05')
-  })
-})
-
-describe('buildMonthOptions', () => {
-  const now = new Date(2026, 8, 16) // 2026-09
-
-  it('含最近 6 个月，并倒序（最新在前）', () => {
-    const months = buildMonthOptions([], [], now)
-    expect(months.slice(0, 7)).toEqual([
-      '2026-10',
-      '2026-09',
-      '2026-08',
-      '2026-07',
-      '2026-06',
-      '2026-05',
-      '2026-04',
-    ])
-  })
-
-  it('保留有数据但超出最近 6 个月的月份', () => {
-    expect(buildMonthOptions(['2025-01'], [], now)).toContain('2025-01')
-  })
-
-  it('保留设过预算的月份', () => {
-    expect(buildMonthOptions([], ['2025-03'], now)).toContain('2025-03')
-  })
-
-  it('去重并过滤掉非法月份键', () => {
-    const months = buildMonthOptions(['2026-09', 'bad-key'], ['2026-09'], now)
-    expect(months.filter((m) => m === '2026-09')).toHaveLength(1)
-    expect(months).not.toContain('bad-key')
-  })
-
-  it('结果始终倒序', () => {
-    const months = buildMonthOptions(['2024-05'], ['2025-11'], now)
-    expect(months).toEqual([...months].sort().reverse())
   })
 })
 

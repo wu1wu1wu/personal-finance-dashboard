@@ -23,7 +23,7 @@ import {
   buildRecurringReminders,
   summarizeRecurringReminders,
 } from '@/core/recurring-reminder';
-import { getCurrentMonth, getTodayLocal, buildMonthOptions } from '@/utils/date';
+import { getCurrentMonth, getTodayLocal } from '@/utils/date';
 import { useBudgetStore } from '@/stores/budget-store';
 import { useRecurringStore } from '@/stores/recurring-store';
 import {
@@ -31,13 +31,13 @@ import {
   useT,
   useLocale,
   formatMonthForLocale,
-  formatMonthShortForLocale,
 } from '@/i18n';
 import type { MessageKey } from '@/i18n';
 import { formatAmount, formatCurrency } from '@/utils/format';
 import { isConsumption } from '@/core/transaction-query';
 import { hasNoteCard, normalizeNote } from '@/core/transaction-note';
 import { cn } from '@/utils/cn';
+import MonthPicker from '@/components/ui/MonthPicker';
 import UndoBar from '@/components/ui/UndoBar';
 import MonthlyTrendChart from '@/components/dashboard/MonthlyTrendChart';
 import CategoryPieChart from '@/components/dashboard/CategoryPieChart';
@@ -81,13 +81,12 @@ export default function Dashboard() {
     void loadIgnored();
   }, [loadFromStorage, loadBudgets, loadIgnored]);
 
-  // 月份选项：最近 6 个月 ∪ 有数据的月份 ∪ 有预算的月份 ∪ 下个月，倒序（最新在前）
-  const months = useMemo(
-    () =>
-      buildMonthOptions(
-        transactions.map((t) => t.transactionTime.substring(0, 7)),
-        Object.keys(totalBudgets),
-      ),
+  // 有记录的月份（含设过预算的月份）：年月选择器里打点用
+  const monthsWithData = useMemo(
+    () => [
+      ...transactions.map((t) => t.transactionTime.substring(0, 7)),
+      ...Object.keys(totalBudgets),
+    ],
     [transactions, totalBudgets],
   );
 
@@ -250,37 +249,12 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* 月份切换：横向滚动，避免窄屏折行 */}
-      {months.length > 0 && (
-        <div
-          role="group"
-          aria-label={t('dashboard.monthPickerLabel')}
-          className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        >
-          <div className="flex w-max gap-1.5">
-            {months.map((m) => {
-              const active = m === selectedMonth;
-              return (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setSelectedMonth(m)}
-                  aria-pressed={active}
-                  aria-label={formatMonthForLocale(locale, m)}
-                  className={cn(
-                    'tnum flex min-h-11 shrink-0 items-center rounded-lg px-3 text-sm transition-colors',
-                    active
-                      ? 'bg-brand font-medium text-white'
-                      : 'bg-surface text-ink-muted hover:text-ink',
-                  )}
-                >
-                  {formatMonthShortForLocale(locale, m)}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {/* 月份：带年份的年月选择器，替代原来只写「9月」的横滑 chip 行 */}
+      <MonthPicker
+        value={selectedMonth}
+        onChange={setSelectedMonth}
+        monthsWithData={monthsWithData}
+      />
 
       {isLoading && (
         <p className="py-12 text-center text-sm text-ink-subtle">{t('common.loading')}</p>

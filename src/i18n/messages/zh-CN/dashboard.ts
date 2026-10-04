@@ -5,7 +5,6 @@ export const dashboard = {
   'dashboard.viewOverview': '概览',
   'dashboard.viewNotes': '手记',
   'dashboard.viewSwitcherLabel': '看板视图',
-  'dashboard.monthPickerLabel': '选择月份',
   'dashboard.emptyTitle': '还没有记账记录',
   'dashboard.emptyHint': '点底部（桌面端在右上角）的「记一笔」，或到「设置」导入微信账单',
   // 前面的数字由页面渲染（加粗），这里只接后半句

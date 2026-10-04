@@ -59,4 +59,14 @@ export const common = {
   'common.error.reload': '刷新页面',
   'common.error.unknown': '未知错误',
   'common.error.backupFileName': '记账备份_崩溃前',
+  // 年月选择器（看板 / 预算 / 明细共用）
+  'common.monthPicker.label': '选择月份',
+  'common.monthPicker.description': '按年份翻，点一下就切过去',
+  'common.monthPicker.prevYear': '上一年',
+  'common.monthPicker.nextYear': '下一年',
+  'common.monthPicker.yearLabel': '{year} 年',
+  'common.monthPicker.thisMonth': '回到本月',
+  'common.monthPicker.allMonths': '全部月份',
+  'common.monthPicker.dataHint': '带圆点的月份有记录',
+  'common.monthPicker.currentHint': '当前：{month}',
 } as const;
