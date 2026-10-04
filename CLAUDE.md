@@ -117,6 +117,9 @@ src/
 - **支出口径**：转账（含红包/提现/退款）不计入支出统计与分类饼图，通过 `isConsumption()`（`src/core/transaction-query.ts`）统一判定
 - **记录来源**：`Transaction.origin` 区分 `import`（账单导入）/ `manual`（手动添加）/ `auto`（通知或短信自动捕获）
 - **数据脱敏**：`core/data-masker.ts` 可对银行卡号、姓名、手机号进行脱敏处理
+- **返回键**：Capacitor 8 不接管安卓返回键，`MainActivity` 用 `OnBackPressedCallback` 先执行 `window.__pfdHandleBack()`（= `core/back-stack.ts` 的消费栈，弹窗在 `ui/Modal.tsx` 里统一注册），没人消费才退 WebView 历史，最后才退出 App
+- **页面返回**：`ui/PageHeader` 走 `hooks/useBackTo`（`core/nav-back.ts`）——来源是父页就真回退，否则 `replace` 到父页，别把历史越点越多
+- **月份选择**：`ui/MonthPicker` + `core/month-picker.ts`（看板 / 预算 / 明细共用）
 - **部署**：Nginx 静态站点（`nginx.conf`），也支持 Vercel（`vercel.json`）
 
 ### 构建安卓 APK
