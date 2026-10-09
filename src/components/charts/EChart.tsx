@@ -6,7 +6,11 @@
 // <EChart option={...} style={...} onEvents={...} />
 // ============================================================
 
-import ReactEChartsCore from 'echarts-for-react/lib/core';
+// 必须用 esm/ 这一份：lib/core.js 是 CJS（exports.default = 组件），
+// 打包器给 default 的是那个模块对象，React 会当成非法元素类型直接抛 #130
+// （「Element type is invalid ... but got: object」）。
+// 之前用 'echarts-for-react' 包根入口能work，是因为 package.json 的 module 字段指向 esm/index.js。
+import ReactEChartsCore from 'echarts-for-react/esm/core';
 import { echarts } from '@/components/charts/register';
 import type { ChartOption } from '@/components/charts/register';
 

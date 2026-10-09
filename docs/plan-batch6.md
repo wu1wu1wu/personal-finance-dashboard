@@ -133,7 +133,22 @@
 
 ---
 
-## 7. 已知缺口
+## 7. 上线后发现的崩溃：EChart 的 CJS 默认导入
+
+用户装上 APK 后一打开就是「页面出错了 / Minified React error #130」。定位与修复过程值得记下来：
+
+- **解码错误**：`formatProdErrorMessage(130, typeof type, "")` 对应 react.dev/errors/130 → 「Element type is invalid ... but got: **object**」——某个 JSX 标签拿到的是对象，不是组件。
+- **复现**：单测与「空数据」浏览器都正常。真正的复现办法是给浏览器灌一份真实数据：往 localStorage 写入 131 笔交易后再打开页面——**空数据时看板走的是空状态分支，图表根本没渲染过**，所以这个 bug 在空数据下永远看不见。
+- **定位**：非压缩的 dev 版控制台直接点名 ——
+  `Check the render method of 'EChart'. The above error occurred in the <EChart> component.`
+- **根因**：`EChart.tsx` 里 `import ReactEChartsCore from 'echarts-for-react/lib/core'`。`lib/core.js` 是 CJS（`exports.default = 组件`），打包器给 `default` 的是那个**模块对象**本身。之前用包根入口 `echarts-for-react` 没事，是因为 `package.json` 的 `module` 字段指向 `esm/index.js`。
+- **修法**：改从 ESM 那份导入 `echarts-for-react/esm/core`（同一份代码，包里有 `esm/core.d.ts`，类型也能解析）。
+
+**教训**：这类「只有真渲染才炸」的问题，`tsc` / `oxlint` / 单测 / 空数据冒烟全都拦不住。以后凡是改了图表、CJS 依赖或拆包策略，都按这条流程验一次（本机有 Edge/Chrome 即可）：构建 → 预览 → 同一个浏览器 profile 先灌数据再打开 → 检查 DOM 里有没有「页面出错」、控制台有没有 JS 报错。
+
+---
+
+## 8. 已知缺口
 
 - **卡片交互与月份面板的交互没有单测**：项目单测是 node 环境、无 jsdom，只有纯逻辑（`transaction-note`、`back-stack`、`nav-back`、`month-picker`、`transaction-filters`）进得了测试；组件交互靠 `tsc` + `oxlint` + 构建 + 浏览器手测。
 - **安卓返回键需要重新出包才能验证**：`MainActivity` 的改动要 Gradle 构建后装机；本机没有真机/模拟器，只能保证编译通过 + 逻辑单测通过。
@@ -141,15 +156,17 @@
 
 ---
 
-## 8. 验证记录
+## 9. 验证记录
 
-- 单测：**557 → 589**（42 个文件）。新增：`back-stack` 8、`nav-back` 4、`month-picker` 16、`transaction-filters` +9（含 `hasAdvancedFilters` / `countActiveFilters`）；删除 `buildMonthOptions` 用例 5 条
+- 单测：**557 → 589**（42 个文件）。新增：`back-stack` 8、`nav-back` 4、`month-picker` 16、`transaction-filters` +9（含 `hasAdvancedFilters` / `countActiveFilters`）；删除 `buildMonthOptions` 用例 5 条。崩溃修复后复跑仍是 42 文件 / 589 测试全绿
 - `tsc -b --force`：无输出，exit 0
 - `oxlint`：0 warning / 0 error（193 文件）
 - `vite build`：成功；`dist/sw.js` 仍是经典脚本（`node --check` 通过、无 import/export/document）
-- 开发服务器冒烟：`/`、`MonthPicker.tsx`、`Transactions.tsx`、`Budget.tsx`、`useBackTo.ts`、`back-stack.ts`、`main.tsx` 全部 200
+- **真实浏览器 + 真实数据**（headless Edge，localStorage 灌入 131 笔交易）：`/`、`/transactions`、`/transactions?direction=income&min=100`、`/budget`、`/report`、`/report?month=2026-09`、`/settings`、`/cleanup` 全部渲染正常，DOM 里没有「页面出错」，控制台除 PWA 安装提示外无 JS 报错；修复前同一套复现稳定触发 #130
+- 开发服务器冒烟：`/`、`MonthPicker.tsx`、`Transactions.tsx`、`Budget.tsx`、`useBackTo.ts`、`back-stack.ts`、`main.tsx` 全部 200；dev 模式下带数据渲染同样已正常
 - 变异检查（证明守卫真的会响，均已还原并复跑全绿）：
   1. `hasNoteCard` 只看 `theme` → 「只有配图也算一条」失败
   2. `clearNote` 去掉 `saveCover(id,'')` → 「独立的图片键也一起删」失败
-  3. `resolveBackAction` 去掉 pop 分支 → 「来源就是父页时真回退」失败
+  3. `resolveBackAction` 去掉 pop 分支 → 「来源是父页时真回退」失败
   4. `yearBounds` 忽略数据年份 → 3 条用例失败
+- APK：`cap sync android` + Gradle `assembleDebug` 成功，产物 `android/app/build/outputs/apk/debug/app-debug.apk`
