@@ -180,6 +180,7 @@ export const STORAGE_KEYS = {
   CAPTURE_SETTINGS: 'pfd_capture_settings',
   TRASH: 'pfd_trash',
   RECURRING_IGNORED: 'pfd_recurring_ignored',
+  MIGRATION_INCOME_V1: 'pfd_mig_income_v1',
 } as const;
 
 /** 分类定义 */
