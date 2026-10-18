@@ -57,3 +57,52 @@ describe('规则表', () => {
     }
   })
 })
+
+describe('平局时的优先级', () => {
+  it('长度与规则优先级都相同时，先出现的词赢（游戏充值 → 休闲娱乐，不是居住生活）', () => {
+    const hit = classifyByKeyword(
+      { transactionType: '支出', counterparty: '多益网络', description: '游戏充值' },
+      { customRules: [] },
+    )
+    expect(hit?.keyword).toBe('游戏')
+    expect(hit?.category).toBe('休闲娱乐')
+  })
+
+  it('具体分类仍然压过「其他」兜底（星巴克 + 手续费 → 餐饮美食）', () => {
+    const hit = classifyByKeyword(
+      { transactionType: '支出', counterparty: '星巴克', description: '手续费' },
+      { customRules: [] },
+    )
+    expect(hit?.category).toBe('餐饮美食')
+  })
+})
+
+describe('「充值」不再单独决定分类', () => {
+  it('真实账单原文：充值游戏 → 休闲娱乐', () => {
+    const hit = classifyByKeyword(
+      {
+        transactionType: '支出',
+        counterparty: '多益网络',
+        description: '刷单和代充均为诈骗。充值游戏：战盟账号。物品：多益币。',
+      },
+      { customRules: [] },
+    )
+    expect(hit?.category).toBe('休闲娱乐')
+  })
+
+  it('话费充值仍归居住生活（由更具体的「话费」决定）', () => {
+    const hit = classifyByKeyword(
+      { transactionType: '支出', counterparty: '中国移动', description: '话费充值' },
+      { customRules: [] },
+    )
+    expect(hit?.category).toBe('居住生活')
+  })
+
+  it('只有「充值」两个字时不硬猜', () => {
+    const hit = classifyByKeyword(
+      { transactionType: '支出', counterparty: '某商户', description: '充值' },
+      { customRules: [] },
+    )
+    expect(hit).toBeNull()
+  })
+})

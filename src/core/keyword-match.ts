@@ -61,10 +61,15 @@ export function classifyByKeyword(
 
   if (candidates.length === 0) return null;
 
+  // 平局时用「在文本里出现的先后」决定：先出现的词更可能是主语义。
+  // 例：「多益网络 / 游戏充值」里「游戏」与「充值」都是 2 字、同为 priority 10，
+  // 按字母序会让「充值」赢（→居住生活），按出现位置则是「游戏」（→休闲娱乐），后者才对。
+  const positionOf = (keyword: string) => text.indexOf(keyword.toLowerCase());
   candidates.sort(
     (a, b) =>
       b.keyword.length - a.keyword.length ||
       b.priority - a.priority ||
+      positionOf(a.keyword) - positionOf(b.keyword) ||
       a.keyword.localeCompare(b.keyword),
   );
   return { category: candidates[0].category, keyword: candidates[0].keyword };
