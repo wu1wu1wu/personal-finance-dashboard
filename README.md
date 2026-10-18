@@ -211,8 +211,14 @@ src/
   core/          # 纯逻辑引擎（无 React 依赖）
                  #   csv-parser        账单解析（微信 / 支付宝，xlsx 按需加载）
                  #   bill-format       账单格式识别与列名映射
-                 #   classifier        关键词分类 + 反馈学习
-                 #   habit-learner     习惯学习（金额 + 时段 → 分类）
+                 #   classifier        分类入口（薄封装，委托六层引擎）
+                 #   classify          六层判定编排（你设的/资金搬运/商户记忆/关键词/渠道/时段金额）
+                 #   classify-context  从交易数据现算记忆、时段金额规则、渠道统计
+                 #   merchant-key      商户键抽取（去渠道/单号/分店）
+                 #   merchant-memory   商户 → 分类记忆（只学手设与关键词）
+                 #   keyword-match     品类关键词匹配（最长词优先、反例词、渠道词不参与）
+                 #   channels          渠道词分电商型/综合型
+                 #   amount-time-rules 时段+金额规则归纳与匹配
                  #   transaction-reconcile  账单回填 + 重复导入保护
                  #   transaction-query 筛选 / 排序 / 汇总
                  #   transaction-filters 筛选条件 ↔ URL 参数
