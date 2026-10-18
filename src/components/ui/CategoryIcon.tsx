@@ -13,6 +13,7 @@ import {
   ShoppingBag,
   Tag,
   Utensils,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -25,6 +26,7 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
   医疗健康: Pill,
   教育学习: GraduationCap,
   转账: ArrowLeftRight,
+  收入: Wallet,
   其他: Tag,
   待确认: CircleQuestionMark,
 };

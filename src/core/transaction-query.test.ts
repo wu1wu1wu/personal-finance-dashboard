@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import type { Transaction } from '@/types'
 import {
   getAvailableMonths,
+  isConsumption,
   queryTransactions,
   summarizeTransactions,
 } from './transaction-query'
@@ -168,5 +169,11 @@ describe('转账不计入支出筛选', () => {
       'meal',
       'move',
     ])
+  })
+})
+
+describe('收入类别', () => {
+  it('收入类别不计入消费支出', () => {
+    expect(isConsumption(txn({ id: 'salary', amount: 100, category: '收入' }))).toBe(false)
   })
 })

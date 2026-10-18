@@ -8,6 +8,7 @@ export const dataLabels = {
   'category.health': '医疗健康',
   'category.education': '教育学习',
   'category.transfer': '转账',
+  'category.income': '收入',
   'category.other': '其他',
   'category.pending': '待确认',
   'transactionType.expense': '支出',

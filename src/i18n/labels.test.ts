@@ -40,6 +40,11 @@ describe('分类 / 类型 / 周期 文案', () => {
       expect(MESSAGES['zh-CN'][key]).toBeDefined();
     }
   });
+
+  it('收入类别有中文与英文标签', () => {
+    expect(categoryLabel('zh-CN', '收入')).toBe('收入');
+    expect(categoryLabel('en', '收入')).toBe('Income');
+  });
 });
 
 describe('分类文案的语言无关性', () => {

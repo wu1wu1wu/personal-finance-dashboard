@@ -11,7 +11,7 @@ import type { MessageKey } from './messages';
 import type { Locale } from './locale';
 import { translateIn } from './translate';
 
-/** 10 个分类 值 → key */
+/** 11 个分类 值 → key */
 export const CATEGORY_MESSAGE_KEYS = {
   餐饮美食: 'category.dining',
   交通出行: 'category.transport',
@@ -21,6 +21,7 @@ export const CATEGORY_MESSAGE_KEYS = {
   医疗健康: 'category.health',
   教育学习: 'category.education',
   转账: 'category.transfer',
+  收入: 'category.income',
   其他: 'category.other',
   待确认: 'category.pending',
 } satisfies Record<CategoryName, MessageKey>;
