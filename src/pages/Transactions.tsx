@@ -23,7 +23,8 @@ import UndoBar from '@/components/ui/UndoBar';
 import { useTransactionStore } from '@/stores/transaction-store';
 import { useClassificationStore } from '@/stores/classification-store';
 import { usePerTransactionLimits } from '@/hooks/usePerTransactionLimits';
-import { classifyTransaction } from '@/core/classifier';
+import { classifyTransactionDetailed } from '@/core/classify';
+import { buildClassifyContext } from '@/core/classify-context';
 import {
   DEFAULT_FILTERS,
   countActiveFilters,
@@ -244,9 +245,14 @@ export default function Transactions() {
 
   // 补了分类关键词后，把还挂在「待确认」的记录重跑一遍分类
   const handleReclassify = () => {
+    const allTxns = useTransactionStore.getState().transactions;
+    const ctx = buildClassifyContext(allTxns, customRules);
     const updates = filteredTransactions
       .filter((t) => t.category === '待确认')
-      .map((t) => ({ id: t.id, category: classifyTransaction(t, customRules) }))
+      .map((t) => {
+        const verdict = classifyTransactionDetailed(t, ctx);
+        return { id: t.id, category: verdict.category, basis: verdict.basis, reason: verdict.reason };
+      })
       .filter((u) => u.category !== '待确认');
     const changed = applyCategories(updates);
     if (changed > 0) {

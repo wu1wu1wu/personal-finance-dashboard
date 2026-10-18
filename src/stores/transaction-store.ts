@@ -68,7 +68,9 @@ interface TransactionStore {
   /** 批量更新分类（待确认收件箱多选归类） */
   updateCategoryBatch: (ids: string[], category: string) => void;
   /** 按各自的分类批量写回（重新识别待确认记录用） */
-  applyCategories: (updates: { id: string; category: string }[]) => number;
+  applyCategories: (
+    updates: { id: string; category: string; basis?: Transaction['classifyBasis']; reason?: string }[],
+  ) => number;
   /** 切换周期性标记 */
   togglePeriodic: (id: string) => void;
   /** 批量切换周期性标记（看板取消周期订阅时一次写完，避免逐条全量落盘） */
@@ -245,11 +247,18 @@ export const useTransactionStore = create<TransactionStore>((set, get) => ({
 
   applyCategories: (updates) => {
     if (updates.length === 0) return 0;
-    const byId = new Map(updates.map((u) => [u.id, u.category]));
+    const byId = new Map(updates.map((u) => [u.id, u]));
     set((state) => ({
       transactions: state.transactions.map((t) => {
-        const category = byId.get(t.id);
-        return category ? { ...t, category, categorySource: 'auto' } : t;
+        const update = byId.get(t.id);
+        if (!update?.category) return t;
+        return {
+          ...t,
+          category: update.category,
+          categorySource: 'auto' as const,
+          ...(update.basis ? { classifyBasis: update.basis } : {}),
+          ...(update.reason ? { classifyReason: update.reason } : {}),
+        };
       }),
     }));
     get().persist();

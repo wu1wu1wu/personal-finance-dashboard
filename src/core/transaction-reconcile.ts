@@ -7,7 +7,7 @@
 // ============================================================
 
 import type { ClassificationRule, Transaction } from '@/types';
-import { classifyTransaction } from '@/core/classifier';
+import { classifyTransactionDetailed, type ClassifyContext } from './classify';
 
 /** 回填匹配的时间窗口：24 小时（与账单导出频率无关） */
 export const MATCH_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -108,6 +108,7 @@ export function reconcileImportedBills(
   existing: Transaction[],
   imported: Transaction[],
   customRules: ClassificationRule[] = [],
+  ctx: ClassifyContext = {},
 ): ReconcileResult {
   const result = [...existing];
   const placeholderIndexes: number[] = [];
@@ -169,10 +170,13 @@ export function reconcileImportedBills(
     };
 
     // 账单带着真实商户名，用它重新跑一次分类
+    const verdict = classifyTransactionDetailed(base, { ...ctx, customRules });
     result[pair.placeholderIndex] = {
       ...base,
-      category: classifyTransaction(base, customRules),
-      categorySource: 'auto',
+      category: verdict.category,
+      categorySource: verdict.level === 'guessed' ? 'guessed' : 'auto',
+      classifyBasis: verdict.basis,
+      classifyReason: verdict.reason,
     };
     enrichedIds.push(base.id);
   }

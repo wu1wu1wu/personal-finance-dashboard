@@ -323,3 +323,21 @@ describe('MATCH_WINDOW_MS', () => {
     expect(MATCH_WINDOW_MS).toBe(24 * 60 * 60 * 1000)
   })
 })
+
+describe('回填后的分类等级', () => {
+  it('回填后只靠渠道历史推测出来的分类，必须标成「推测」', () => {
+    const existing = [placeholder('p1', '2026-09-10 12:00:00', 23)]
+    const imported = [bill('b1', '2026-09-10 12:00:05', 23, '美团')]
+    // 美团是综合型渠道：历史 3 条全是餐饮美食，只够「推测」，不算确定
+    const channelStats = new Map([['美团', new Map([['餐饮美食', 3]])]])
+
+    const r = reconcileImportedBills(existing, imported, [], { channelStats })
+
+    expect(r.stats.enrichedCount).toBe(1)
+    const enriched = r.transactions[0]
+    expect(enriched.category).toBe('餐饮美食')
+    expect(enriched.categorySource).toBe('guessed')
+    expect(enriched.classifyBasis).toBe('channel-guess')
+    expect(enriched.classifyReason).toContain('美团')
+  })
+})
