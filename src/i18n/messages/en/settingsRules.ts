@@ -63,6 +63,7 @@ export const settingsRules: Record<keyof typeof zhSettingsRules, string> = {
   'settingsRules.autoLedger.diagnostics.filtered_other':
     'Filtered out non-transaction notifications: {count}',
   'settingsRules.autoLedger.diagnostics.rescan': 'Rescan notification shade',
+  'settingsRules.autoLedger.diagnostics.rebind': 'Reconnect listener',
   'settingsRules.autoLedger.diagnostics.refresh': 'Refresh',
   'settingsRules.autoLedger.diagnostics.clear': 'Clear diagnostics',
   'settingsRules.autoLedger.diagnostics.recent_one':

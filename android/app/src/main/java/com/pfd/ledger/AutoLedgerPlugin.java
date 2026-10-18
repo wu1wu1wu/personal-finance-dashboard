@@ -1,12 +1,14 @@
 package com.pfd.ledger;
 
 import android.Manifest;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.PowerManager;
 import android.provider.Settings;
+import android.service.notification.NotificationListenerService;
 
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -429,6 +431,25 @@ public class AutoLedgerPlugin extends Plugin {
             call.resolve();
         } catch (Exception e) {
             call.reject("无法打开通知使用权设置", e);
+        }
+    }
+
+    /**
+     * 重新请求绑定通知监听服务。
+     *
+     * 国产 ROM 上常见：通知使用权还开着，但监听服务被系统清掉（强杀、省电策略），
+     * 于是 App 再也收不到通知，用户只能去系统设置里关掉再打开。
+     * requestRebind 能让系统重新拉起服务，比重开权限轻得多。
+     */
+    @PluginMethod
+    public void requestRebind(PluginCall call) {
+        try {
+            ComponentName component =
+                    new ComponentName(getContext(), AutoLedgerNotificationService.class);
+            NotificationListenerService.requestRebind(component);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("无法重新绑定通知监听服务", e);
         }
     }
 

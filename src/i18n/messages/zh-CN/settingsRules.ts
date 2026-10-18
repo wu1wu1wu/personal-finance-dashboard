@@ -55,6 +55,7 @@ export const settingsRules = {
   'settingsRules.autoLedger.diagnostics.filtered_one': '已过滤非交易通知：{count} 条',
   'settingsRules.autoLedger.diagnostics.filtered_other': '已过滤非交易通知：{count} 条',
   'settingsRules.autoLedger.diagnostics.rescan': '补扫通知栏',
+  'settingsRules.autoLedger.diagnostics.rebind': '重新连接监听',
   'settingsRules.autoLedger.diagnostics.refresh': '刷新',
   'settingsRules.autoLedger.diagnostics.clear': '清空诊断记录',
   'settingsRules.autoLedger.diagnostics.recent_one': '最近识别到的 1 条交易通知',

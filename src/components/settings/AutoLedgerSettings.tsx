@@ -172,6 +172,17 @@ export default function AutoLedgerSettings() {
     await refreshStatus();
   };
 
+  /** 权限还开着、但服务被系统断开时，用它把监听拉回来 */
+  const handleRebind = async () => {
+    try {
+      await AutoLedger.requestRebind();
+    } catch {
+      // 权限没开时重绑无效，权限行那边有对应开关
+    }
+    // 系统重新绑定需要一点时间，稍后再读一次状态
+    setTimeout(() => void refreshStatus(), 1500);
+  };
+
   if (!isNative) {
     return (
       <section className={CARD}>
@@ -353,6 +364,9 @@ export default function AutoLedgerSettings() {
             <div className="flex flex-wrap gap-3 pt-1">
               <button type="button" onClick={handleRescan} className="text-brand hover:underline">
                 {t('settingsRules.autoLedger.diagnostics.rescan')}
+              </button>
+              <button type="button" onClick={handleRebind} className="text-brand hover:underline">
+                {t('settingsRules.autoLedger.diagnostics.rebind')}
               </button>
               <button
                 type="button"

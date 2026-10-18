@@ -46,6 +46,8 @@ export interface AutoLedgerPlugin {
   hasNotificationAccess(): Promise<{ enabled: boolean }>;
   /** 打开系统「通知使用权」设置页 */
   openNotificationSettings(): Promise<void>;
+  /** 重新请求绑定通知监听服务（权限还在、但服务被系统断开时用） */
+  requestRebind(): Promise<void>;
   /** 查询系统是否已忽略本 App 的电池优化 */
   getBatteryOptimizationStatus(): Promise<{ ignoringOptimizations: boolean }>;
   /** 打开本 App 的系统详情页，由用户设置后台电池策略 */
