@@ -28,6 +28,20 @@ export interface Transaction {
   categorySource: 'auto' | 'rule' | 'manual' | 'guessed';
   /** 用户是否手动编辑过这条记录（编辑过就不再被账单回填覆盖） */
   userEdited?: boolean;
+  /** 分类依据（诊断与界面展示用，不参与判定） */
+  classifyBasis?:
+    | 'user'
+    | 'transfer'
+    | 'income'
+    | 'memory'
+    | 'keyword'
+    | 'ecommerce'
+    | 'channel-guess'
+    | 'amount-time'
+    | 'rule'
+    | 'none';
+  /** 分类依据的人话说明 */
+  classifyReason?: string;
   /** 记录来源：账单导入 / 手动添加 / 自动捕获（通知或短信） */
   origin: 'import' | 'manual' | 'auto';
   /**

@@ -7,13 +7,15 @@ import { CircleAlert, CircleCheck, CloudUpload, Info, LoaderCircle } from 'lucid
 import { parseBillFile, isBillFile } from '@/core/csv-parser';
 import type { BillFormat } from '@/core/bill-format';
 import { maskTransactions } from '@/core/data-masker';
-import { classifyTransactions } from '@/core/classifier';
+import { buildClassifyContext } from '@/core/classify-context';
+import { classifyTransactionDetailed } from '@/core/classify';
 import { reconcileImportedBills, isAlreadyImported } from '@/core/transaction-reconcile';
 import { useTransactionStore } from '@/stores/transaction-store';
 import { useClassificationStore } from '@/stores/classification-store';
 import { useSettingsStore } from '@/stores/settings-store';
 import { useT } from '@/i18n';
 import { cn } from '@/utils/cn';
+import type { Transaction } from '@/types';
 
 interface UploadResult {
   total: number;
@@ -85,20 +87,31 @@ export default function UploadZone() {
           ? maskTransactions(parseResult.transactions)
           : parseResult.transactions;
 
-        // 自动分类（加载规则 → 批量分类）
+        // 自动分类：用已有交易构建上下文（记忆/时段金额/渠道统计），再逐条判定
         await loadRules();
         const allRules = getAllRules();
-        const classified = classifyTransactions(masked, allRules);
+        const store = useTransactionStore.getState();
+        const ctx = buildClassifyContext(store.transactions, allRules);
+        /** 真正判出了分类（非待确认）的笔数，用于结尾提示 */
+        let autoClassified = 0;
+        const classified: Transaction[] = masked.map((t) => {
+          const verdict = classifyTransactionDetailed(t, ctx);
+          if (verdict.level !== 'pending') autoClassified += 1;
+          return {
+            ...t,
+            category: verdict.category,
+            categorySource: verdict.level === 'guessed' ? 'guessed' : 'auto',
+            classifyBasis: verdict.basis,
+            classifyReason: verdict.reason,
+          };
+        });
 
         // 写入 Store：先按 id / 账单 id / 交易单号去重，再把账单补全到已有的自动记账占位记录上，
         // 这样能保留原有的封面和标签，并重新分类。
         // 注意不能只看 id：被回填过的记录保留的是占位 id，账单 id 记在 billId 上，
         // 否则同一份账单再导一次会让支出翻倍。
-        const store = useTransactionStore.getState();
-        const fresh = classified.classified.filter(
-          (t) => !isAlreadyImported(store.transactions, t),
-        );
-        const duplicateByImport = classified.classified.length - fresh.length;
+        const fresh = classified.filter((t) => !isAlreadyImported(store.transactions, t));
+        const duplicateByImport = classified.length - fresh.length;
         const reconcile = reconcileImportedBills(store.transactions, fresh, allRules);
         store.applyReconcile(reconcile.transactions);
 
@@ -119,8 +132,8 @@ export default function UploadZone() {
         if (addedCount > 0) parts.push(t('billImport.done.added', { count: addedCount }));
         if (enrichedCount > 0)
           parts.push(t('billImport.done.enriched', { count: enrichedCount }));
-        if (classified.stats.classified > 0)
-          parts.push(t('billImport.done.classified', { count: classified.stats.classified }));
+        if (autoClassified > 0)
+          parts.push(t('billImport.done.classified', { count: autoClassified }));
 
         setImporting(
           false,

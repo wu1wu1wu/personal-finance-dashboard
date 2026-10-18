@@ -10,25 +10,28 @@ import type { CapturedTransaction } from '@/plugins/AutoLedger';
 import { parseCapturedTransaction } from '@/core/transaction-capture';
 import { resolveCaptureTiming } from '@/core/capture-timing';
 import { isDuplicateCapture } from '@/core/transaction-reconcile';
-import { classifyTransaction } from '@/core/classifier';
+import { buildClassifyContext } from '@/core/classify-context';
+import type { BuiltClassifyContext } from '@/core/classify-context';
+import { classifyTransactionDetailed } from '@/core/classify';
 import { generateTransactionId } from '@/utils/id';
 import { useTransactionStore } from '@/stores/transaction-store';
 import { useClassificationStore } from '@/stores/classification-store';
 import { useCaptureRuleStore } from '@/stores/capture-rule-store';
-import { buildHabitModel } from '@/core/habit-learner';
-import type { HabitModel } from '@/core/habit-learner';
-import type { Transaction } from '@/types';
+import type { ClassificationRule, Transaction } from '@/types';
 
-/** 习惯模型缓存：交易数组引用变化时重建（store 每次变更都会换新数组） */
-let cachedModelKey: Transaction[] | null = null;
-let cachedModel: HabitModel | null = null;
+/** 分类上下文缓存：交易数组引用变化时重建（store 每次变更都会换新数组） */
+let cachedCtxKey: Transaction[] | null = null;
+let cachedCtx: BuiltClassifyContext | null = null;
 
-function getHabitModel(transactions: Transaction[]): HabitModel {
-  if (cachedModelKey !== transactions || cachedModel === null) {
-    cachedModel = buildHabitModel(transactions);
-    cachedModelKey = transactions;
+function getClassifyContext(
+  transactions: Transaction[],
+  rules: ClassificationRule[],
+): BuiltClassifyContext {
+  if (cachedCtxKey !== transactions || cachedCtx === null) {
+    cachedCtx = buildClassifyContext(transactions, rules);
+    cachedCtxKey = transactions;
   }
-  return cachedModel;
+  return cachedCtx;
 }
 
 /** 解析并写入一条捕获到的交易 */
@@ -71,27 +74,24 @@ function processCapture(data: CapturedTransaction) {
   };
 
   const customRules = useClassificationStore.getState().customRules;
-  // 自定义读取规则可以直接指定分类，优先级高于关键词分类。
-  // 来源记为 'rule' 而不是 'manual'：这是规则给的，不是用户改的，
-  // 导入账单时这条记录仍然要被回填（补商户名、换真实单号）。
-  let category = parsed.category || classifyTransaction(txn, customRules);
-  let categorySource: Transaction['categorySource'] = 'auto';
+  const ctx = getClassifyContext(store.transactions, customRules);
+  const verdict = classifyTransactionDetailed(txn, ctx);
 
-  if (parsed.category) {
-    categorySource = 'rule';
-  }
+  // 自定义读取规则给出的分类优先级最高（那是用户显式写的规则，比六层判定更权威）
+  const category = parsed.category || verdict.category;
+  const categorySource: Transaction['categorySource'] = parsed.category
+    ? 'rule'
+    : verdict.level === 'guessed'
+      ? 'guessed'
+      : 'auto';
 
-  // 关键词规则没命中时，用历史账单学到的「金额 + 时段」习惯给一个推测分类。
-  // 推测结果单独标记，方便用户一眼分辨并能一键改正。
-  if (!parsed.category && category === '待确认') {
-    const guess = getHabitModel(store.transactions).predict(txn);
-    if (guess) {
-      category = guess.category;
-      categorySource = 'guessed';
-    }
-  }
-
-  store.addTransaction({ ...txn, category, categorySource });
+  store.addTransaction({
+    ...txn,
+    category,
+    categorySource,
+    classifyBasis: parsed.category ? 'rule' : verdict.basis,
+    classifyReason: parsed.category ? '命中自定义读取规则' : verdict.reason,
+  });
 }
 
 /**

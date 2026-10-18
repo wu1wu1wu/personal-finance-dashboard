@@ -29,6 +29,7 @@ export type ClassificationBasis =
   | 'ecommerce'
   | 'channel-guess'
   | 'amount-time'
+  | 'rule'
   | 'none';
 
 export type ClassificationLevel = 'certain' | 'guessed' | 'pending';
