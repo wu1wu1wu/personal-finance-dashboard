@@ -323,9 +323,17 @@ export default function TransactionDetailModal({ txn, onClose }: TransactionDeta
             counterparty={txn.counterparty}
             description={txn.description}
             source={txn.categorySource}
+            reason={txn.classifyReason}
             editable
           />
         </div>
+
+        {/* 分类依据：让每条分类都能回答「凭什么」 */}
+        {txn.classifyReason && (
+          <p className="-mt-1 border-b border-line pb-3 text-xs text-ink-subtle">
+            {t('transactions.detail.basis', { reason: txn.classifyReason })}
+          </p>
+        )}
 
         {/* 快速归类 */}
         <div className="border-b border-line pb-3">

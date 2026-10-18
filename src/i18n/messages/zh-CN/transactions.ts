@@ -114,6 +114,7 @@ export const transactions = {
   'transactions.detail.addCover': '添加配图',
   'transactions.detail.removeCover': '移除',
   'transactions.detail.quickCategorize': '快速归类',
+  'transactions.detail.basis': '分类依据：{reason}',
   'transactions.detail.section': '明细',
   'transactions.detail.editHint': '编辑过的记录不会再被后续导入的账单覆盖。',
   'transactions.detail.saveEdit': '保存修改',

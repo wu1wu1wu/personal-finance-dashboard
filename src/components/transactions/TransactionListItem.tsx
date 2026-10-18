@@ -110,6 +110,7 @@ function TransactionListItem({
                 counterparty={txn.counterparty}
                 description={txn.description}
                 source={txn.categorySource}
+                reason={txn.classifyReason}
                 editable
               />
             </div>

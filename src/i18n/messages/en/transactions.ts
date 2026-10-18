@@ -115,6 +115,7 @@ export const transactions: Record<keyof typeof zhTransactions, string> = {
   'transactions.detail.addCover': 'Add image',
   'transactions.detail.removeCover': 'Remove',
   'transactions.detail.quickCategorize': 'Quick categorize',
+  'transactions.detail.basis': 'Why: {reason}',
   'transactions.detail.section': 'Details',
   'transactions.detail.editHint': 'Edited records will not be overwritten by later imports.',
   'transactions.detail.saveEdit': 'Save changes',

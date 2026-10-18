@@ -26,6 +26,8 @@ interface CategoryTagProps {
   description: string;
   /** 分类来源 */
   source?: 'auto' | 'rule' | 'manual' | 'guessed';
+  /** 分类依据（推测时作为提示文案） */
+  reason?: string;
   /** 是否可编辑 */
   editable?: boolean;
 }
@@ -36,6 +38,7 @@ export default function CategoryTag({
   counterparty,
   description,
   source = 'auto',
+  reason,
   editable = true,
 }: CategoryTagProps) {
   const updateCategory = useTransactionStore((s) => s.updateCategory);
@@ -57,7 +60,7 @@ export default function CategoryTag({
       {source === 'guessed' && (
         <span
           className="ml-0.5 text-[10px] opacity-70"
-          title={t('transactions.tag.guessedTitle')}
+          title={reason ?? t('transactions.tag.guessedTitle')}
         >
           {t('transactions.tag.guessed')}
         </span>
