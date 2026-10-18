@@ -112,7 +112,7 @@ export default function UploadZone() {
         // 否则同一份账单再导一次会让支出翻倍。
         const fresh = classified.filter((t) => !isAlreadyImported(store.transactions, t));
         const duplicateByImport = classified.length - fresh.length;
-        const reconcile = reconcileImportedBills(store.transactions, fresh, allRules);
+        const reconcile = reconcileImportedBills(store.transactions, fresh, allRules, ctx);
         store.applyReconcile(reconcile.transactions);
 
         const addedCount = reconcile.stats.addedCount;

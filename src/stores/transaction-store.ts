@@ -255,7 +255,11 @@ export const useTransactionStore = create<TransactionStore>((set, get) => ({
         return {
           ...t,
           category: update.category,
-          categorySource: 'auto' as const,
+          // 渠道推测 / 时段金额推测要落成 guessed，否则界面会把"猜的"显示成"确定的"
+          categorySource:
+            update.basis === 'channel-guess' || update.basis === 'amount-time'
+              ? ('guessed' as const)
+              : ('auto' as const),
           ...(update.basis ? { classifyBasis: update.basis } : {}),
           ...(update.reason ? { classifyReason: update.reason } : {}),
         };

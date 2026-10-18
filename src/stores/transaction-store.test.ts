@@ -355,3 +355,18 @@ describe('togglePeriodicBatch', () => {
     expect(list.map((t) => t.isPeriodic)).toEqual([true, false, true])
   })
 })
+
+describe('applyCategories 分类来源', () => {
+  it('渠道推测/时段金额推测落成 guessed，其余落成 auto', () => {
+    useTransactionStore.setState({ transactions: [txn({ id: 'a' }), txn({ id: 'b' })] })
+    useTransactionStore.getState().applyCategories([
+      { id: 'a', category: '餐饮美食', basis: 'channel-guess', reason: '美团历史 3 条' },
+      { id: 'b', category: '交通出行', basis: 'keyword', reason: '命中「地铁」' },
+    ])
+    const byId = new Map(useTransactionStore.getState().transactions.map((t) => [t.id, t]))
+    expect(byId.get('a')!.categorySource).toBe('guessed')
+    expect(byId.get('a')!.classifyBasis).toBe('channel-guess')
+    expect(byId.get('b')!.categorySource).toBe('auto')
+    expect(byId.get('b')!.classifyReason).toBe('命中「地铁」')
+  })
+})
