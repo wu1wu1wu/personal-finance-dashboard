@@ -9,7 +9,7 @@
 // 渠道词**不参与品类关键词匹配**——这是"美团单车被判餐饮"的根因。
 // ============================================================
 
-export const ECOMMERCE_CHANNELS = ['淘宝', '拼多多', '天猫', '京东', '唯品会'] as const;
+export const ECOMMERCE_CHANNELS = ['淘宝', '拼多多', '天猫', '京东', '唯品会', '苏宁'] as const;
 export const PLATFORM_CHANNELS = ['美团', '饿了么', '抖音', '高德'] as const;
 
 export type ChannelKind = 'ecommerce' | 'platform';

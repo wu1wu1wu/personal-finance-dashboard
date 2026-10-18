@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { classifyByKeyword } from './keyword-match';
+import { BUILTIN_RULES } from '@/constants/rules'
+import { ECOMMERCE_CHANNELS, PLATFORM_CHANNELS } from './channels'
 
 describe('classifyByKeyword', () => {
   it('最长词优先：超市压过渠道词美团', () => {
@@ -46,3 +48,12 @@ describe('classifyByKeyword', () => {
     expect(hit).toBeNull();
   });
 });
+
+describe('规则表', () => {
+  it('内置词表里不再有渠道词', () => {
+    const words = BUILTIN_RULES.flatMap((r) => r.keywords)
+    for (const channel of [...ECOMMERCE_CHANNELS, ...PLATFORM_CHANNELS]) {
+      expect(words).not.toContain(channel)
+    }
+  })
+})
