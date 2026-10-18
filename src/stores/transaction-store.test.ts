@@ -355,3 +355,61 @@ describe('togglePeriodicBatch', () => {
     expect(list.map((t) => t.isPeriodic)).toEqual([true, false, true])
   })
 })
+
+describe('applyCategories 分类来源', () => {
+  it('渠道推测/时段金额推测落成 guessed，其余落成 auto', () => {
+    useTransactionStore.setState({ transactions: [txn({ id: 'a' }), txn({ id: 'b' })] })
+    useTransactionStore.getState().applyCategories([
+      { id: 'a', category: '餐饮美食', basis: 'channel-guess', reason: '美团历史 3 条' },
+      { id: 'b', category: '交通出行', basis: 'keyword', reason: '命中「地铁」' },
+    ])
+    const byId = new Map(useTransactionStore.getState().transactions.map((t) => [t.id, t]))
+    expect(byId.get('a')!.categorySource).toBe('guessed')
+    expect(byId.get('a')!.classifyBasis).toBe('channel-guess')
+    expect(byId.get('b')!.categorySource).toBe('auto')
+    expect(byId.get('b')!.classifyReason).toBe('命中「地铁」')
+  })
+})
+
+describe('收入迁移', () => {
+  it('负数记录且分类不是转账/收入 → 收入', async () => {
+    fake[STORAGE_KEYS.TRANSACTIONS] = JSON.stringify([
+      txn({ id: 'a', amount: -1800, category: '居住生活', categorySource: 'manual' }),
+      txn({ id: 'b', amount: 100, category: '居住生活', categorySource: 'manual' }),
+      txn({ id: 'c', amount: -200, category: '转账', categorySource: 'manual' }),
+    ])
+
+    useTransactionStore.setState({ transactions: [], loaded: false })
+    await useTransactionStore.getState().loadFromStorage()
+
+    const byId = new Map(useTransactionStore.getState().transactions.map((t) => [t.id, t]))
+    expect(byId.get('a')!.category).toBe('收入')
+    expect(byId.get('b')!.category).toBe('居住生活')
+    expect(byId.get('c')!.category).toBe('转账')
+    // 改判过的记录要落盘，否则下次启动又变回去
+    const saved = JSON.parse(fake[STORAGE_KEYS.TRANSACTIONS] as string) as Transaction[]
+    expect(saved.find((t) => t.id === 'a')!.category).toBe('收入')
+    // 标记位写入，保证只跑一次
+    expect(fake[STORAGE_KEYS.MIGRATION_INCOME_V1]).toBe('true')
+  })
+
+  it('只跑一次：用户之后改回的分类不会被再次覆盖', async () => {
+    fake[STORAGE_KEYS.TRANSACTIONS] = JSON.stringify([
+      txn({ id: 'a', amount: -1800, category: '居住生活', categorySource: 'manual' }),
+    ])
+
+    useTransactionStore.setState({ transactions: [], loaded: false })
+    await useTransactionStore.getState().loadFromStorage()
+    await flushPersist('transactions')
+
+    // 用户把它改回「居住生活」
+    useTransactionStore.getState().updateCategory('a', '居住生活')
+    await flushPersist('transactions')
+
+    // 模拟下次启动
+    useTransactionStore.setState({ transactions: [], loaded: false })
+    await useTransactionStore.getState().loadFromStorage()
+
+    expect(useTransactionStore.getState().transactions[0].category).toBe('居住生活')
+  })
+})

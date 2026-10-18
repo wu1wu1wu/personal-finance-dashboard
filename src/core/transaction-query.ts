@@ -41,6 +41,9 @@ export interface TransactionSummary {
 /** 转账分类名：不计入「支出」统计口径 */
 export const TRANSFER_CATEGORY = '转账';
 
+/** 收入分类名：不计入「支出」统计口径 */
+export const INCOME_CATEGORY = '收入';
+
 /** 金额约定：正数 = 支出，负数 = 收入 */
 export function isExpense(txn: Transaction): boolean {
   return txn.amount > 0;
@@ -58,7 +61,12 @@ export function isIncome(txn: Transaction): boolean {
  * 全站的支出统计都应通过这个判定，不要在各自模块里散着写字符串比较。
  */
 export function isConsumption(txn: Transaction): boolean {
-  return txn.amount > 0 && txn.category !== TRANSFER_CATEGORY && txn.transactionType !== '其他';
+  return (
+    txn.amount > 0 &&
+    txn.category !== TRANSFER_CATEGORY &&
+    txn.category !== INCOME_CATEGORY &&
+    txn.transactionType !== '其他'
+  );
 }
 
 /**
@@ -150,8 +158,10 @@ export function summarizeTransactions(transactions: Transaction[]): TransactionS
   let transfer = 0;
   for (const t of transactions) {
     if (t.amount > 0) {
+      // 与筛选口径保持一致：走 isConsumption，避免"正数但被标成收入/其他"的记录
+      // 在列表里被排除、却在汇总里计进支出
       if (t.category === TRANSFER_CATEGORY) transfer += t.amount;
-      else expense += t.amount;
+      else if (isConsumption(t)) expense += t.amount;
     } else if (t.amount < 0) {
       income += Math.abs(t.amount);
     }

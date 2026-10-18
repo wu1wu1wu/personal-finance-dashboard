@@ -9,6 +9,7 @@ export const dataLabels: Record<keyof typeof zhDataLabels, string> = {
   'category.health': 'Health',
   'category.education': 'Education',
   'category.transfer': 'Transfer',
+  'category.income': 'Income',
   'category.other': 'Other',
   'category.pending': 'Needs review',
   'transactionType.expense': 'Spending',

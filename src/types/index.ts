@@ -28,6 +28,20 @@ export interface Transaction {
   categorySource: 'auto' | 'rule' | 'manual' | 'guessed';
   /** 用户是否手动编辑过这条记录（编辑过就不再被账单回填覆盖） */
   userEdited?: boolean;
+  /** 分类依据（诊断与界面展示用，不参与判定） */
+  classifyBasis?:
+    | 'user'
+    | 'transfer'
+    | 'income'
+    | 'memory'
+    | 'keyword'
+    | 'ecommerce'
+    | 'channel-guess'
+    | 'amount-time'
+    | 'rule'
+    | 'none';
+  /** 分类依据的人话说明 */
+  classifyReason?: string;
   /** 记录来源：账单导入 / 手动添加 / 自动捕获（通知或短信） */
   origin: 'import' | 'manual' | 'auto';
   /**
@@ -62,6 +76,8 @@ export interface ClassificationRule {
   isCustom: boolean;
   /** 命中次数（用于权重学习） */
   hitCount: number;
+  /** 反例词：文本里出现其中任一，本规则作废（可选） */
+  excludes?: string[];
 }
 
 /** 预算 */
@@ -164,6 +180,7 @@ export const STORAGE_KEYS = {
   CAPTURE_SETTINGS: 'pfd_capture_settings',
   TRASH: 'pfd_trash',
   RECURRING_IGNORED: 'pfd_recurring_ignored',
+  MIGRATION_INCOME_V1: 'pfd_mig_income_v1',
 } as const;
 
 /** 分类定义 */
@@ -176,6 +193,7 @@ export const CATEGORIES = [
   { name: '医疗健康', icon: '💊', color: '#EC4899' },
   { name: '教育学习', icon: '📚', color: '#6366F1' },
   { name: '转账', icon: '🔁', color: '#0EA5E9' },
+  { name: '收入', icon: '💰', color: '#22C55E' },
   { name: '其他', icon: '📌', color: '#6B7280' },
   { name: '待确认', icon: '❓', color: '#9CA3AF' },
 ] as const;

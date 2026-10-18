@@ -48,7 +48,7 @@ export default function BudgetEditor({ month }: BudgetEditorProps) {
   const monthBudgets = budgets.filter((b) => b.month === month);
   const budgetedCategories = new Set(monthBudgets.map((b) => b.category));
   const availableCategories = CATEGORIES.filter(
-    (c) => c.name !== '待确认' && !budgetedCategories.has(c.name),
+    (c) => c.name !== '待确认' && c.name !== '收入' && !budgetedCategories.has(c.name),
   );
 
   const handleAddBudget = () => {

@@ -68,7 +68,9 @@ interface TransactionStore {
   /** 批量更新分类（待确认收件箱多选归类） */
   updateCategoryBatch: (ids: string[], category: string) => void;
   /** 按各自的分类批量写回（重新识别待确认记录用） */
-  applyCategories: (updates: { id: string; category: string }[]) => number;
+  applyCategories: (
+    updates: { id: string; category: string; basis?: Transaction['classifyBasis']; reason?: string }[],
+  ) => number;
   /** 切换周期性标记 */
   togglePeriodic: (id: string) => void;
   /** 批量切换周期性标记（看板取消周期订阅时一次写完，避免逐条全量落盘） */
@@ -157,6 +159,10 @@ export const useTransactionStore = create<TransactionStore>((set, get) => ({
     // 2. 新增「转账」分类后，把此前自动归到「其他」的转账类记录改判
     //    只动 categorySource === 'auto' 的记录，用户手动改过的分类不覆盖
     let changed = 0;
+    // 一次性迁移：金额为负且分类不是转账/收入 → 收入
+    // 旧版本没有「收入」类别，工资/理赔这类收入被迫塞进了支出口径（如「居住生活」）。
+    // 用存储标记把关，否则会把用户后来手改的分类反复覆盖掉。
+    const incomeMigrated = await storage.get<boolean>(STORAGE_KEYS.MIGRATION_INCOME_V1);
     const migrated = valid.map((t) => {
       let next = t;
 
@@ -191,12 +197,19 @@ export const useTransactionStore = create<TransactionStore>((set, get) => ({
         next = { ...next, coverImage: '' };
       }
 
+      if (!incomeMigrated && next.amount < 0 && next.category !== '转账' && next.category !== '收入') {
+        next = { ...next, category: '收入' };
+      }
+
       if (next !== t) changed++;
       return next;
     });
     if (changed > 0) {
       console.log(`[迁移] 已迁移 ${changed} 条记录`);
       await storage.set(STORAGE_KEYS.TRANSACTIONS, migrated);
+    }
+    if (!incomeMigrated) {
+      await storage.set(STORAGE_KEYS.MIGRATION_INCOME_V1, true);
     }
 
     // 封面图从主记录里拆出来单独存：先把老数据的内嵌图片搬走，再读回独立键上的图片。
@@ -245,11 +258,22 @@ export const useTransactionStore = create<TransactionStore>((set, get) => ({
 
   applyCategories: (updates) => {
     if (updates.length === 0) return 0;
-    const byId = new Map(updates.map((u) => [u.id, u.category]));
+    const byId = new Map(updates.map((u) => [u.id, u]));
     set((state) => ({
       transactions: state.transactions.map((t) => {
-        const category = byId.get(t.id);
-        return category ? { ...t, category, categorySource: 'auto' } : t;
+        const update = byId.get(t.id);
+        if (!update?.category) return t;
+        return {
+          ...t,
+          category: update.category,
+          // 渠道推测 / 时段金额推测要落成 guessed，否则界面会把"猜的"显示成"确定的"
+          categorySource:
+            update.basis === 'channel-guess' || update.basis === 'amount-time'
+              ? ('guessed' as const)
+              : ('auto' as const),
+          ...(update.basis ? { classifyBasis: update.basis } : {}),
+          ...(update.reason ? { classifyReason: update.reason } : {}),
+        };
       }),
     }));
     get().persist();

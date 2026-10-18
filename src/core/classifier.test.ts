@@ -46,18 +46,18 @@ describe('classifyTransaction', () => {
   it('自定义规则优先于内置规则', () => {
     const custom: ClassificationRule = {
       id: 'r1',
-      keywords: ['美团'],
+      keywords: ['星巴克'],
       category: '其他',
       priority: 100,
       isCustom: true,
       hitCount: 0,
     }
-    expect(classifyTransaction(makeTxn({ counterparty: '美团外卖' }), [custom])).toBe('其他')
+    expect(classifyTransaction(makeTxn({ counterparty: '星巴克' }), [custom])).toBe('其他')
   })
 
   it('具体分类优先于「其他」兜底规则', () => {
-    // 同时命中「美团」（餐饮，priority 10）与「手续费」（其他，priority 5）
-    expect(classifyTransaction(makeTxn({ counterparty: '美团', description: '手续费' }))).toBe('餐饮美食')
+    // 同时命中「星巴克」（餐饮，priority 10）与「手续费」（其他，priority 5）
+    expect(classifyTransaction(makeTxn({ counterparty: '星巴克', description: '手续费' }))).toBe('餐饮美食')
   })
 
   it('仅命中「其他」关键词时归为「其他」', () => {
@@ -77,10 +77,10 @@ describe('classifyTransaction', () => {
 
   it('多个自定义规则命中时，按 priority 降序取最高', () => {
     const rules: ClassificationRule[] = [
-      { id: 'low', keywords: ['美团'], category: '医疗健康', priority: 100, isCustom: true, hitCount: 0 },
-      { id: 'high', keywords: ['美团'], category: '购物消费', priority: 200, isCustom: true, hitCount: 0 },
+      { id: 'low', keywords: ['洗车'], category: '医疗健康', priority: 100, isCustom: true, hitCount: 0 },
+      { id: 'high', keywords: ['洗车'], category: '购物消费', priority: 200, isCustom: true, hitCount: 0 },
     ]
-    expect(classifyTransaction(makeTxn({ counterparty: '美团' }), rules)).toBe('购物消费')
+    expect(classifyTransaction(makeTxn({ counterparty: '洗车店' }), rules)).toBe('购物消费')
   })
 })
 
@@ -153,7 +153,7 @@ describe('真实账单商户名', () => {
     ).toBe('餐饮美食')
   })
 
-  it('补充词优先级低于通用规则：美团仍走原规则', () => {
+  it('渠道词不决定分类：美团 + 外卖 仍按品类词判餐饮', () => {
     expect(classifyTransaction(makeTxn({ counterparty: '美团外卖' }))).toBe('餐饮美食')
   })
 })
