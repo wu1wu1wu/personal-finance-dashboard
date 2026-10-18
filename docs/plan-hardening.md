@@ -161,7 +161,10 @@ amount: isIncome ? -amount : amount,
 ## 已知待确认
 
 - 微信账单「收/支」与「交易类型」的完整取值集合（影响 A′4-2 / A′4-3 的边界）。
-- Capacitor WebView 上 `a.download` + blob 的落盘能力（影响 A″4 导出在真机的表现）。
+- ~~Capacitor WebView 上 `a.download` + blob 的落盘能力（影响 A″4 导出在真机的表现）。~~
+  **已确认是个真 bug 并已修复**：WebView 里没有 DownloadListener，点导出会静默失败而界面仍显示"已导出"。
+  现在原生端改为 `Filesystem` 写入缓存 + `Share` 系统分享面板（网页端不变），
+  实现见 `src/utils/backup-save.ts`，取消分享不再显示成失败。
 - `requestRebind`、厂商自启动页跳转在国产 ROM 上的实际效果（不在本批范围）。
 
 ---

@@ -24,6 +24,8 @@ export const settingsData = {
   'settingsData.backup.restoreLabel': '恢复备份',
   'settingsData.backup.note':
     '完整备份含短信/通知原文，请自行妥善保管；恢复前会自动把当前数据存成一份快照。',
+  'settingsData.backup.nativeHint':
+    '手机上导出会打开系统分享面板：选「保存到文件」即可存进手机，也可以直接发给自己。',
   // 下载文件名
   'settingsData.backup.fileNameMasked': '记账备份_已脱敏',
   'settingsData.backup.fileNameFull': '记账备份_完整',
@@ -36,6 +38,10 @@ export const settingsData = {
   'settingsData.export.inProgress': '正在导出…',
   'settingsData.export.masked': '已导出（银行卡号、手机号、单号已打码）',
   'settingsData.export.full': '已导出完整备份（含原始文本）',
+  'settingsData.export.maskedShared':
+    '已生成备份并交给分享面板（银行卡号、手机号、单号已打码）',
+  'settingsData.export.fullShared': '已生成完整备份并交给分享面板（含原始文本）',
+  'settingsData.export.canceled': '已取消导出，没有生成备份文件',
   'settingsData.export.failed': '导出失败：{message}',
 
   'settingsData.error.unknown': '未知错误',

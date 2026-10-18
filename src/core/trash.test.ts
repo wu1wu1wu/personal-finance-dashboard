@@ -90,7 +90,13 @@ describe('addTrashEntry', () => {
   })
 
   it(`超过 ${TRASH_MAX_BATCHES} 批时淘汰最旧的，并把它交还给调用方清理封面`, () => {
-    let entries = addTrashEntry([], entry('oldest', '2026-09-16T00:00:00.000Z', 1)).entries
+    // 三个参数都要给：now 默认是真实时间，素材日期又是写死的，
+    // 只给两个参数时过了 TTL（30 天）这条测试就会开始失败
+    let entries = addTrashEntry(
+      [],
+      entry('oldest', '2026-09-16T00:00:00.000Z', 1),
+      new Date('2026-09-16T00:00:00.000Z'),
+    ).entries
     for (let i = 1; i < TRASH_MAX_BATCHES; i++) {
       const at = `2026-09-16T${String(i).padStart(2, '0')}:00:00.000Z`
       entries = addTrashEntry(entries, entry(`e${i}`, at, 1), new Date(at)).entries

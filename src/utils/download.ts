@@ -2,9 +2,14 @@
 // 下载工具 - 把 JSON 存成文件
 // ============================================================
 
+/** 备份文件的文本格式：两个空格缩进，保证网页与原生两条路径产出的文件一致 */
+export function toJsonText(data: unknown): string {
+  return JSON.stringify(data, null, 2);
+}
+
 /** 触发浏览器下载一份 JSON 文件（文件名默认带日期） */
 export function downloadJsonFile(filename: string, data: unknown): void {
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const blob = new Blob([toJsonText(data)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;

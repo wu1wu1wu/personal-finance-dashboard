@@ -15,7 +15,8 @@ import type { MessageKey, TranslateParams } from '@/i18n';
 import { useT } from '@/i18n';
 import { useSettingsStore } from '@/stores/settings-store';
 import { storage } from '@/storage/StorageAdapter';
-import { backupFilename, downloadJsonFile } from '@/utils/download';
+import { backupFilename } from '@/utils/download';
+import { saveJsonFile } from '@/utils/backup-save';
 
 interface Props {
   children: ReactNode;
@@ -99,11 +100,16 @@ export default class ErrorBoundary extends Component<Props, State> {
 
     try {
       const backup = await buildBackup(storage);
-      downloadJsonFile(
+      const result = await saveJsonFile(
         backupFilename(translateIn(locale, 'common.error.backupFileName')),
         backup,
       );
-      this.setState({ exportStatus: { key: 'common.error.exported' } });
+      // 崩溃兜底页里的导出同样要走平台分流：网页下载，原生走分享面板
+      this.setState({
+        exportStatus: {
+          key: result === 'canceled' ? 'common.error.exportCanceled' : 'common.error.exported',
+        },
+      });
     } catch (e) {
       this.setState({
         exportStatus: {

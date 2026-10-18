@@ -15,7 +15,8 @@ import { maskTransactions } from '@/core/data-masker';
 import { STORAGE_KEYS } from '@/types';
 import type { Transaction } from '@/types';
 import { useLocale, useT } from '@/i18n';
-import { backupFilename, downloadJsonFile } from '@/utils/download';
+import { backupFilename } from '@/utils/download';
+import { saveJsonFile } from '@/utils/backup-save';
 import { cn } from '@/utils/cn';
 
 const CARD = 'rounded-2xl border border-line bg-surface p-4';
@@ -84,10 +85,25 @@ export default function SettingsData() {
       const prefix = desensitize
         ? t('settingsData.backup.fileNameMasked')
         : t('settingsData.backup.fileNameFull');
-      downloadJsonFile(backupFilename(prefix), backup);
-      setExportStatus(
-        desensitize ? t('settingsData.export.masked') : t('settingsData.export.full'),
-      );
+      const result = await saveJsonFile(backupFilename(prefix), backup);
+
+      if (result === 'canceled') {
+        // 用户自己取消了分享，不是失败，也别说"已导出"
+        setExportStatus(t('settingsData.export.canceled'));
+      } else if (result === 'shared') {
+        // 原生端只负责把文件交给系统分享面板，落到哪儿由用户决定
+        setExportStatus(
+          t(
+            desensitize
+              ? 'settingsData.export.maskedShared'
+              : 'settingsData.export.fullShared',
+          ),
+        );
+      } else {
+        setExportStatus(
+          t(desensitize ? 'settingsData.export.masked' : 'settingsData.export.full'),
+        );
+      }
       setTimeout(() => setExportStatus(null), 5000);
     } catch (e) {
       setExportStatus(
@@ -271,6 +287,9 @@ export default function SettingsData() {
           </label>
         </div>
         <p className="mt-3 text-xs text-ink-subtle">{t('settingsData.backup.note')}</p>
+        {Capacitor.isNativePlatform() && (
+          <p className="mt-1.5 text-xs text-ink-subtle">{t('settingsData.backup.nativeHint')}</p>
+        )}
 
         {/* 恢复确认：先说清楚会覆盖什么 */}
         {pendingRestore && (

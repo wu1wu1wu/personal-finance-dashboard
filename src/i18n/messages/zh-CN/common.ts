@@ -55,6 +55,7 @@ export const common = {
   'common.error.description': '数据仍然保存在本机，没有丢失。建议先导出一份备份，再刷新页面重试。',
   'common.error.export': '导出备份',
   'common.error.exported': '已导出备份，可以放心刷新页面了',
+  'common.error.exportCanceled': '已取消导出，备份没有生成',
   'common.error.exportFailed': '导出失败：{message}',
   'common.error.reload': '刷新页面',
   'common.error.unknown': '未知错误',

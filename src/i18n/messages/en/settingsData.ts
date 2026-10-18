@@ -25,6 +25,8 @@ export const settingsData: Record<keyof typeof zhSettingsData, string> = {
   'settingsData.backup.restoreLabel': 'Restore backup',
   'settingsData.backup.note':
     'The full backup contains raw SMS and notification text — keep it safe. Your current data is snapshotted automatically before a restore.',
+  'settingsData.backup.nativeHint':
+    'On a phone, exporting opens the system share sheet — pick "Save to Files" to put the backup on this device, or send it to yourself.',
   'settingsData.backup.fileNameMasked': 'ledger-backup-masked',
   'settingsData.backup.fileNameFull': 'ledger-backup-full',
   'settingsData.backup.confirmMessage_one':
@@ -36,6 +38,11 @@ export const settingsData: Record<keyof typeof zhSettingsData, string> = {
   'settingsData.export.inProgress': 'Exporting…',
   'settingsData.export.masked': 'Exported (card, phone and order numbers masked)',
   'settingsData.export.full': 'Full backup exported (raw text included)',
+  'settingsData.export.maskedShared':
+    'Backup created and handed to the share sheet (card, phone and order numbers masked)',
+  'settingsData.export.fullShared':
+    'Full backup created and handed to the share sheet (raw text included)',
+  'settingsData.export.canceled': 'Export canceled — no backup file was created',
   'settingsData.export.failed': 'Export failed: {message}',
 
   'settingsData.error.unknown': 'Unknown error',

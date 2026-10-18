@@ -52,6 +52,7 @@ export const common: Record<keyof typeof zhCommon, string> = {
     'Your data is still on this device and has not been lost. Export a backup first, then reload the page.',
   'common.error.export': 'Export backup',
   'common.error.exported': 'Backup exported — you can reload safely now',
+  'common.error.exportCanceled': 'Export canceled — no backup was created',
   'common.error.exportFailed': 'Export failed: {message}',
   'common.error.reload': 'Reload page',
   'common.error.unknown': 'Unknown error',
