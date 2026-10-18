@@ -63,7 +63,7 @@ src/
 ### 核心数据流
 
 ```
-微信 / 支付宝账单 CSV/XLSX → csv-parser.ts（bill-format.ts 识别格式）→ classifier.ts 关键词规则匹配
+微信 / 支付宝账单 CSV/XLSX → csv-parser.ts（bill-format.ts 识别格式）→ classify.ts 六层判定
 → 自动分类 → Transaction[] → stores 持久化到 localStorage
 ```
 
@@ -100,10 +100,20 @@ src/
 
 ### 分类系统
 
-- **内置规则**（[constants/rules.ts](src/constants/rules.ts)）：9 个类别的关键词→类别映射（含转账）
+- **六层判定**（[core/classify.ts](src/core/classify.ts) 的 `classifyTransactionDetailed`，第一个命中即返回）：
+  1. **L1 你设的**：`categorySource === 'manual'` → 确定，永不被覆盖
+  2. **L2 资金搬运与收入**：转账 / 红包 / 提现 / 退款 / 还款 / 零钱通 → 「转账」；否则 `amount < 0` → 「收入」
+  3. **L3 商户记忆**：商户键（从商品说明抽取，剥掉渠道 / App / 单号 / 分店后缀）命中 → 确定；同一键有两种分类 → 留白「待确认」，不做多数投票
+  4. **L4 品类关键词**：最长词优先 → 优先级 → 文本中出现的先后；渠道词（美团 / 淘宝…）不参与；单条规则可带 `excludes` 反例词作废自己
+  5. **L5 渠道**：电商型（淘宝 / 拼多多 / 天猫 / 京东 / 唯品会 / 苏宁）→ 「购物消费」确定；综合型（美团 / 饿了么 / 抖音 / 高德）只在 ≥3 条可信记录、且同一分类占比 ≥80% 时给「推测」
+  6. **L6 时段 + 金额**：仅用于抽不出商户键的记录，规则由用户确认过的记录归纳（支持 ≥5、纯度 ≥80%），输出「推测」
+  - 都没命中 → 「待确认」
+- **上下文全部现算**（[core/classify-context.ts](src/core/classify-context.ts)）：商户记忆（[merchant-memory.ts](src/core/merchant-memory.ts)）只从 `manual` 与关键词命中（`auto`）的记录学，渠道推测与时段金额推测永不入库；时段金额规则（[amount-time-rules.ts](src/core/amount-time-rules.ts)）同理。两者都不落库，每次由交易数组重建
+- **内置规则**（[constants/rules.ts](src/constants/rules.ts)）：9 个类别的关键词→类别映射（含转账）；渠道词已从词表移除
 - **自定义规则**：用户可添加/编辑/删除关键词规则，优先级高于内置规则
-- **反馈学习**：用户在交易列表手动更改分类时会记录反馈，同类反馈累积后自动升级为规则
-- 10 个类别：餐饮美食、交通出行、购物消费、休闲娱乐、居住生活、医疗健康、教育学习、转账、其他、待确认
+- **反馈学习**：用户在交易列表手动更改分类时会记录反馈，同类反馈累积 3 次自动升级为规则
+- **依据展示**：`Transaction` 的可选字段 `classifyBasis` / `classifyReason`，详情弹窗显示「分类依据：…」
+- 11 个类别：餐饮美食、交通出行、购物消费、休闲娱乐、居住生活、医疗健康、教育学习、转账、收入、其他、待确认
 
 ### StorageAdapter 抽象
 
@@ -114,7 +124,7 @@ src/
 - **交易 ID 去重**：通过 UUID v5 确定性生成（基于交易单号等内容哈希），防止重复导入
 - **日期处理**：以 `yyyy-MM` 格式的月份键为索引；`utils/date.ts` 提供月份边界、日期范围等函数
 - **金额约定**：正数 = 支出，负数 = 收入
-- **支出口径**：转账（含红包/提现/退款）不计入支出统计与分类饼图，通过 `isConsumption()`（`src/core/transaction-query.ts`）统一判定
+- **支出口径**：转账（含红包/提现/退款）与「收入」不计入支出统计与分类饼图，通过 `isConsumption()`（`src/core/transaction-query.ts`）统一判定
 - **记录来源**：`Transaction.origin` 区分 `import`（账单导入）/ `manual`（手动添加）/ `auto`（通知或短信自动捕获）
 - **数据脱敏**：`core/data-masker.ts` 可对银行卡号、姓名、手机号进行脱敏处理
 - **返回键**：Capacitor 8 不接管安卓返回键，`MainActivity` 用 `OnBackPressedCallback` 先执行 `window.__pfdHandleBack()`（= `core/back-stack.ts` 的消费栈，弹窗在 `ui/Modal.tsx` 里统一注册），没人消费才退 WebView 历史，最后才退出 App
