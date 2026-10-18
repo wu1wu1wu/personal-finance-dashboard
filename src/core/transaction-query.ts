@@ -158,8 +158,10 @@ export function summarizeTransactions(transactions: Transaction[]): TransactionS
   let transfer = 0;
   for (const t of transactions) {
     if (t.amount > 0) {
+      // 与筛选口径保持一致：走 isConsumption，避免"正数但被标成收入/其他"的记录
+      // 在列表里被排除、却在汇总里计进支出
       if (t.category === TRANSFER_CATEGORY) transfer += t.amount;
-      else expense += t.amount;
+      else if (isConsumption(t)) expense += t.amount;
     } else if (t.amount < 0) {
       income += Math.abs(t.amount);
     }
