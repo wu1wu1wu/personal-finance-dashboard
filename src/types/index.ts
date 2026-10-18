@@ -62,6 +62,8 @@ export interface ClassificationRule {
   isCustom: boolean;
   /** 命中次数（用于权重学习） */
   hitCount: number;
+  /** 反例词：文本里出现其中任一，本规则作废（可选） */
+  excludes?: string[];
 }
 
 /** 预算 */
